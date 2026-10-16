@@ -314,7 +314,7 @@ pub fn collect_conflicted_files(repo: &git2::Repository) -> Result<Vec<Conflicte
             // Full-file context (not the default 3 lines) — the conflict
             // editor shows the whole file, not just the changed hunks.
             let mut opts = git2::DiffOptions::new();
-            opts.context_lines(u32::MAX);
+            opts.context_lines(super::diff::FULL_CONTEXT);
             let mut p = git2::Patch::from_buffers(
                 ours_content.as_deref().unwrap_or("").as_bytes(),
                 Some(std::path::Path::new(path)),

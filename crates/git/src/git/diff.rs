@@ -33,11 +33,17 @@ pub struct FileDiff {
     pub patch: String,
 }
 
+/// "Every line" as a context size. xdiff keeps it in a C `long`, which is
+/// 32 bits on Windows: `u32::MAX` wraps to -1 there and breaks the hunks, and
+/// xdiff adds it to line numbers, so it stays well under `i32::MAX`.
+pub(crate) const FULL_CONTEXT: u32 = 1 << 28;
+const _: () = assert!(FULL_CONTEXT <= i32::MAX as u32 / 4);
+
 /// Full-file context (not the default 3 lines) for every diff this module
 /// generates — the diff viewer shows the whole file, not just the hunks.
 pub(crate) fn full_context_opts() -> git2::DiffOptions {
     let mut opts = git2::DiffOptions::new();
-    opts.context_lines(u32::MAX);
+    opts.context_lines(FULL_CONTEXT);
     opts
 }
 
