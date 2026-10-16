@@ -140,8 +140,9 @@ fn cpu_frame(app: &mut LazyApp, size: (u32, u32), frames: u32, between: Duration
     cpu_frame_with(app, size, frames, between, &[])
 }
 
-/// Como [`cpu_frame`], rodando `run` (comandos de tela) no quadro 10, depois
-/// que a abertura carregou os dados.
+/// Como [`cpu_frame`], rodando os comandos de tela de `run` a partir do
+/// quadro 10 (depois que a abertura carregou os dados), um a cada 10 quadros:
+/// abrir um workspace carrega as threads antes de selecionar uma.
 fn cpu_frame_with(app: &mut LazyApp, size: (u32, u32), frames: u32, between: Duration, run: &[(String, Value)]) -> Option<Vec<u8>> {
     let ctx = egui::Context::default();
     lazyaicode_ui_egui::install(&ctx);
@@ -151,8 +152,8 @@ fn cpu_frame_with(app: &mut LazyApp, size: (u32, u32), frames: u32, between: Dur
     let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(size.0 as f32, size.1 as f32));
     let mut last = None;
     for i in 0..frames.max(2) {
-        if i == 10 {
-            for (cmd, params) in run {
+        if i >= 10 && i % 10 == 0 {
+            if let Some((cmd, params)) = run.get((i / 10 - 1) as usize) {
                 app.inbox().push(cmd, params.clone());
             }
         }
@@ -292,14 +293,9 @@ fn run() -> Result<(), String> {
     }
 
     if let Some(out) = &args.screenshot {
-        let png = cpu_frame_with(
-            &mut app,
-            args.size,
-            args.frames.max(if args.run.is_empty() { 0 } else { 30 }),
-            Duration::from_millis(60),
-            &args.run,
-        )
-        .ok_or("renderização em CPU falhou")?;
+        let png =
+            cpu_frame_with(&mut app, args.size, args.frames.max(20 + 10 * args.run.len() as u32), Duration::from_millis(60), &args.run)
+                .ok_or("renderização em CPU falhou")?;
         std::fs::write(out, png).map_err(|e| format!("{}: {e}", out.display()))?;
         eprintln!("{} ({}x{})", out.display(), args.size.0, args.size.1);
         if let Some(e) = &engine {

@@ -17,10 +17,12 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui) {
     egui::CentralPanel::default().frame(frame).show(ui, |ui| {
         if let Some(th) = app.selected().cloned() {
             thread_header(app, ui, &th);
+            widgets::hline(ui, &tk);
             tabs_bar(app, ui, true);
             content(app, ui, Some(&th));
         } else if let Some(p) = app.current_project().cloned() {
             repo_header(app, ui, &p);
+            widgets::hline(ui, &tk);
             tabs_bar(app, ui, false);
             content(app, ui, None);
         } else {
@@ -33,9 +35,11 @@ fn thread_header(app: &mut LazyApp, ui: &mut egui::Ui, th: &lazyaicode_doc::Thre
     let tk = app.tokens;
     let id = th.thread.id.clone();
     let busy = matches!(th.status, Status::Running | Status::Awaiting);
-    egui::Frame::new().inner_margin(egui::Margin { left: 14, right: 10, top: 8, bottom: 4 }).show(ui, |ui| {
+    egui::Frame::new().inner_margin(egui::Margin { left: 18, right: 12, top: 9, bottom: 9 }).show(ui, |ui| {
+        ui.set_min_height(36.0);
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
                 match app.eph.editing_title.as_mut() {
                     Some(v) => {
                         let r = ui.add(egui::TextEdit::singleline(v).font(egui::TextStyle::Heading).desired_width(420.0));
@@ -57,7 +61,7 @@ fn thread_header(app: &mut LazyApp, ui: &mut egui::Ui, th: &lazyaicode_doc::Thre
                     }
                     None => {
                         let r = ui.add(
-                            egui::Label::new(RichText::new(&th.thread.title).size(tk.text_size + 3.0).strong())
+                            egui::Label::new(RichText::new(&th.thread.title).size(tk.text_size + 1.0).strong().color(tk.p.text))
                                 .sense(Sense::click())
                                 .truncate(),
                         );
@@ -67,9 +71,9 @@ fn thread_header(app: &mut LazyApp, ui: &mut egui::Ui, th: &lazyaicode_doc::Thre
                     }
                 }
                 ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 6.0;
+                    ui.spacing_mut().item_spacing.x = 8.0;
                     if let Some(p) = app.data.project(&th.thread.project_id) {
-                        ui.label(widgets::muted(&tk, &p.name));
+                        ui.label(widgets::muted(&tk, &p.name).size(tk.text_size - 1.0));
                     }
                     let branch = app
                         .data
@@ -78,7 +82,7 @@ fn thread_header(app: &mut LazyApp, ui: &mut egui::Ui, th: &lazyaicode_doc::Thre
                         .and_then(|b| b["branch"].as_str().map(str::to_string))
                         .or_else(|| th.thread.branch.clone());
                     if let Some(b) = branch.filter(|b| !b.is_empty()) {
-                        ui.label(widgets::muted(&tk, format!("{} {b}", icon::GIT_BRANCH)));
+                        ui.label(widgets::muted(&tk, format!("{} {b}", icon::GIT_BRANCH)).size(tk.text_size - 1.0));
                     }
                     if th.thread.provider != "claude" {
                         let label = lazyaicode_doc::PROVIDERS.iter().find(|p| p.0 == th.thread.provider).map_or("", |p| p.1);
@@ -193,9 +197,9 @@ fn repo_header(app: &mut LazyApp, ui: &mut egui::Ui, p: &lazyaicode_doc::Project
 fn tabs_bar(app: &mut LazyApp, ui: &mut egui::Ui, with_chat: bool) {
     let tk = app.tokens;
     let git = app.current_project().is_some_and(|p| p.is_git);
-    egui::Frame::new().inner_margin(egui::Margin { left: 10, right: 10, top: 0, bottom: 0 }).show(ui, |ui| {
+    egui::Frame::new().inner_margin(egui::Margin { left: 12, right: 8, top: 0, bottom: 0 }).show(ui, |ui| {
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 14.0;
+            ui.spacing_mut().item_spacing.x = 2.0;
             for (i, tab) in MAIN_TABS.into_iter().enumerate() {
                 if (!with_chat && tab == MainTab::Chat) || (!git && tab.is_git()) {
                     continue;
@@ -209,10 +213,14 @@ fn tabs_bar(app: &mut LazyApp, ui: &mut egui::Ui, with_chat: bool) {
                     MainTab::Stats => icon::CHART_BAR,
                     MainTab::Terminal => icon::TERMINAL_WINDOW,
                 };
-                let text = RichText::new(format!("{ic}  {}", t(tab.label_key()))).color(if on { tk.p.text } else { tk.p.muted });
-                let r = ui.add(egui::Button::new(text).frame(false).min_size(Vec2::new(0.0, tk.row_h)));
+                // ícone + nome, 10 px de cada lado e o sublinhado do accent na aba aberta
+                let label = format!("{ic}  {}", t(tab.label_key()));
+                let g = ui.painter().layout_no_wrap(label, egui::FontId::proportional(tk.text_size), tk.p.text);
+                let (rect, r) = ui.allocate_exact_size(Vec2::new(g.size().x + 20.0, 34.0), Sense::click());
+                let color = if on || r.hovered() { tk.p.text } else { tk.p.muted };
+                ui.painter().galley(egui::pos2(rect.left() + 10.0, rect.center().y - g.size().y / 2.0), g, color);
                 if on {
-                    ui.painter().hline(r.rect.x_range(), r.rect.bottom(), Stroke::new(2.0, tk.p.accent));
+                    ui.painter().hline(rect.x_range(), rect.bottom() - 1.0, Stroke::new(2.0, tk.p.accent));
                 }
                 if r.on_hover_text(format!("Ctrl+{}", i + 1)).clicked() {
                     app.state.tab = tab;

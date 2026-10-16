@@ -67,7 +67,7 @@ pub fn user_message(app: &mut LazyApp, ui: &mut egui::Ui, key: &str, text: &str,
         });
     }
     if !text.is_empty() {
-        ui.add(egui::Label::new(RichText::new(text).color(tk.p.text)).wrap().selectable(true));
+        ui.add(egui::Label::new(RichText::new(text).size(tk.text_size + 1.0).color(tk.p.text)).wrap().selectable(true));
     }
 }
 

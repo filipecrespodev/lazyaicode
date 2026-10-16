@@ -3,7 +3,7 @@
 //! arrastadas.
 
 use base64::Engine as _;
-use egui::{Key, Modifiers, RichText, Stroke, Vec2};
+use egui::{Key, Modifiers, RichText, Stroke};
 use egui_phosphor::regular as icon;
 use lazyaicode_doc::{Status, ThreadView};
 use lazyaicode_i18n::t;
@@ -205,7 +205,7 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
     }
     let n = items.len();
     let mut pick: Option<Value> = None;
-    let mut send = false;
+    let mut send = std::mem::take(&mut app.eph.send_now);
     if focused {
         if n > 0 {
             ui.input_mut(|i| {
@@ -234,32 +234,29 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
         });
     }
 
+    let has_items = app.data.transcripts.get(&id).is_some_and(|t| !t.items.is_empty());
     let hint = if th.thread.archived {
         t("thread.threadArchived")
     } else if busy {
         t("thread.agentWorking")
+    } else if has_items {
+        t("thread.reply")
     } else {
         t("thread.describeTask")
     };
-    let frame = egui::Frame::new()
-        .fill(tk.p.input)
-        .stroke(Stroke::new(1.0, if focused { tk.p.border_strong } else { tk.p.border }))
-        .corner_radius(egui::CornerRadius::same(tk.radius))
-        .inner_margin(egui::Margin::symmetric(10, 8));
-    let resp = frame
-        .show(ui, |ui| {
-            ui.add_enabled(
-                !th.thread.archived,
-                egui::TextEdit::multiline(&mut draft)
-                    .id(cid)
-                    .hint_text(hint)
-                    .desired_rows(1)
-                    .desired_width(f32::INFINITY)
-                    .frame(egui::Frame::NONE)
-                    .lock_focus(true),
-            )
-        })
-        .inner;
+    // o campo é a próxima mensagem da conversa: sem moldura, como no app anterior
+    let resp = ui.add_enabled(
+        !th.thread.archived,
+        egui::TextEdit::multiline(&mut draft)
+            .id(cid)
+            .hint_text(RichText::new(hint).color(tk.p.faint))
+            .font(egui::FontId::proportional(tk.text_size + 1.0))
+            .desired_rows(1)
+            .desired_width(f32::INFINITY)
+            .frame(egui::Frame::NONE)
+            .margin(egui::Margin::ZERO)
+            .lock_focus(true),
+    );
     if std::mem::take(&mut app.eph.focus_composer) {
         resp.request_focus();
     }
@@ -318,33 +315,6 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
                 });
             });
     }
-
-    // linha de ações abaixo do campo
-    ui.horizontal(|ui| {
-        if widgets::icon_button(ui, &tk, icon::PAPERCLIP, &format!("{} (Ctrl+Shift+I)", t("thread.attach"))).clicked() {
-            app.host.pick_images("ui.composer.attach-paths", json!({ "id": id }));
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if busy {
-                if widgets::button(ui, &tk, &format!("{}  {}", icon::STOP, t("thread.stop"))).on_hover_text("Esc").clicked() {
-                    app.fire("thread.interrupt", json!({ "id": id }));
-                }
-            } else {
-                let can = (!draft.trim().is_empty() || !atts.is_empty()) && !th.thread.archived;
-                let b = ui.add_enabled(
-                    can,
-                    egui::Button::new(RichText::new(icon::PAPER_PLANE_RIGHT).color(if can { tk.on_accent } else { tk.p.faint }))
-                        .fill(if can { tk.p.accent } else { tk.p.elev })
-                        .min_size(Vec2::new(30.0, 24.0)),
-                );
-                if b.clicked() {
-                    send = true;
-                }
-            }
-            let with_mod = app.data.settings.as_ref().is_some_and(|s| s.send_with_modifier);
-            ui.label(widgets::faint(&tk, if with_mod { t("thread.sendHintMod") } else { t("thread.sendHint") }));
-        });
-    });
 
     if send && !busy && !th.thread.archived && (!draft.trim().is_empty() || !atts.is_empty()) {
         let text = draft.trim().to_string();

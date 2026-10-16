@@ -23,62 +23,116 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
     let tk = app.tokens;
     let id = th.thread.id.clone();
     let claude = th.thread.provider == "claude";
+    let small = tk.text_size - 1.0;
     ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 8.0;
+        ui.spacing_mut().item_spacing.x = 6.0;
         if let Some(p) = app.data.project(&th.thread.project_id) {
-            ui.label(RichText::new(format!("{} {}", icon::FOLDER_SIMPLE, p.name)).color(tk.p.text).size(tk.text_size - 1.0));
+            let r = seg(ui, &tk, RichText::new(format!("{}  {}", icon::STACK, p.name)).size(small).color(tk.p.text).strong());
+            if r.on_hover_text(&th.thread.cwd).clicked() {
+                app.fire("system.open-path", json!({ "path": th.thread.cwd }));
+            }
         }
         let stats = app.data.diff_stats.get(&id).cloned();
-        if let Some(b) = stats.as_ref().and_then(|s| s["branch"].as_str()).filter(|b| *b != "HEAD") {
-            ui.label(RichText::new(format!("/ {b}")).color(tk.p.muted).size(tk.text_size - 1.0));
+        let branch = stats.as_ref().and_then(|s| s["branch"].as_str().map(str::to_string)).or_else(|| th.thread.branch.clone());
+        if let Some(b) = branch.filter(|b| !b.is_empty() && b != "HEAD") {
+            ui.label(RichText::new("/").size(small).color(tk.p.faint));
+            ui.label(RichText::new(b).monospace().size(small - 0.5).color(tk.p.muted)).on_hover_text("Branch");
         }
         if let Some(s) = &stats {
             let (a, d) = (s["additions"].as_u64().unwrap_or(0), s["deletions"].as_u64().unwrap_or(0));
             if a + d > 0 {
-                let r = ui.add(
-                    egui::Label::new(RichText::new(format!("+{a}")).color(tk.add_fg).size(tk.text_size - 1.0)).sense(egui::Sense::click()),
-                );
-                ui.label(RichText::new(format!("−{d}")).color(tk.del_fg).size(tk.text_size - 1.0));
-                if r.on_hover_text(tf("footer.filesChanged", &[("n", &s["files"].as_u64().unwrap_or(0))])).clicked() {
+                let files = s["files"].as_u64().unwrap_or(0);
+                let mut job = egui::text::LayoutJob::default();
+                let fmt = |c| egui::TextFormat { font_id: egui::FontId::proportional(small), color: c, ..Default::default() };
+                job.append(&format!("+{}", group_digits(a)), 0.0, fmt(tk.add_fg));
+                job.append(&format!(" −{}", group_digits(d)), 0.0, fmt(tk.del_fg));
+                let r = seg(ui, &tk, job);
+                let tip = tf(if files == 1 { "footer.diffTitleOne" } else { "footer.diffTitleOther" }, &[("n", &files)]);
+                if r.on_hover_text(tip).clicked() {
                     let _ = crate::commands::run_ui(app, "ui.history.review", &Value::Null);
                 }
             }
         }
-        if th.thread.isolated {
-            ui.label(RichText::new(icon::STACK).color(tk.p.faint)).on_hover_text(t("thread.isolatedWorkspace"));
-        }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            send_button(app, ui, th);
             model_menu(app, ui, th);
             if claude {
                 effort_menu(app, ui, th);
             }
             mode_menu(app, ui, th);
-            if claude {
-                let skip = th.thread.skip_permissions;
-                if widgets::icon_button_on(
-                    ui,
-                    &tk,
-                    if skip { icon::SHIELD_SLASH } else { icon::SHIELD_CHECK },
-                    &t(if skip { "footer.skipOn" } else { "footer.skipOff" }),
-                    skip,
-                )
-                .clicked()
-                {
-                    let _ = crate::commands::run_ui(app, "ui.thread.skip-permissions.toggle", &Value::Null);
-                }
-            }
-            context_meter(app, ui, &id);
             mcp_chip(app, ui, th);
+            context_meter(app, ui, &id);
+            if widgets::icon_button(ui, &tk, icon::PAPERCLIP, &format!("{} (Ctrl+Shift+I)", t("thread.attach"))).clicked() {
+                app.host.pick_images("ui.composer.attach-paths", json!({ "id": id }));
+            }
         });
     });
 }
 
-fn menu_button(ui: &mut egui::Ui, tk: &crate::theme::Tokens, text: String, tip: &str) -> egui::Response {
-    let b = egui::Button::new(RichText::new(text).size(tk.text_size - 1.0).color(tk.p.muted)).frame(false);
-    let r = ui.add(b);
-    if r.hovered() {
-        ui.painter().rect_stroke(r.rect, egui::CornerRadius::same(tk.radius_sm), Stroke::new(1.0, tk.p.border), egui::StrokeKind::Inside);
+/// `12345` → `12,345`, como o rodapé antigo.
+fn group_digits(n: u64) -> String {
+    let s = n.to_string();
+    let mut out = String::new();
+    for (i, c) in s.chars().enumerate() {
+        if i > 0 && (s.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
     }
+    out
+}
+
+/// Um pedaço clicável do rodapé (fundo só sob o mouse).
+fn seg(ui: &mut egui::Ui, tk: &crate::theme::Tokens, text: impl Into<egui::WidgetText>) -> egui::Response {
+    let r = ui.add(egui::Button::new(text).frame(false).min_size(egui::vec2(0.0, 24.0)));
+    if r.hovered() {
+        ui.painter().rect_filled(
+            r.rect.expand2(egui::vec2(3.0, 0.0)),
+            egui::CornerRadius::same(tk.radius_sm),
+            tk.p.hover.gamma_multiply(0.7),
+        );
+    }
+    r
+}
+
+/// Enviar (ou parar o agente), no canto do rodapé como no app anterior.
+fn send_button(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
+    let tk = app.tokens;
+    let id = th.thread.id.clone();
+    let busy = matches!(th.status, lazyaicode_doc::Status::Running | lazyaicode_doc::Status::Awaiting);
+    let (rect, r) = ui.allocate_exact_size(egui::vec2(26.0, 24.0), egui::Sense::click());
+    if busy {
+        ui.painter().rect_filled(
+            rect,
+            egui::CornerRadius::same(tk.radius_sm),
+            tk.p.red.gamma_multiply(if r.hovered() { 1.0 } else { 0.85 }),
+        );
+        ui.painter().rect_filled(
+            egui::Rect::from_center_size(rect.center(), egui::vec2(9.0, 9.0)),
+            egui::CornerRadius::same(2),
+            egui::Color32::WHITE,
+        );
+        if r.on_hover_text(t("footer.stop")).clicked() {
+            app.fire("thread.interrupt", json!({ "id": id }));
+        }
+        return;
+    }
+    let draft = app.data.drafts.get(&id).is_some_and(|d| !d.trim().is_empty());
+    let atts = app.data.attachments.get(&id).is_some_and(|a| !a.is_empty());
+    let can = (draft || atts) && !th.thread.archived;
+    let (bg, fg) = if can { (tk.p.accent, tk.on_accent) } else { (tk.p.elev, tk.p.faint) };
+    ui.painter().rect_filled(rect, egui::CornerRadius::same(tk.radius_sm), if can && r.hovered() { bg.gamma_multiply(0.9) } else { bg });
+    ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, icon::PAPER_PLANE_RIGHT, egui::FontId::proportional(14.0), fg);
+    let with_mod = app.data.settings.as_ref().is_some_and(|s| s.send_with_modifier);
+    let tip = if with_mod { t("thread.sendHintMod") } else { t("footer.send") };
+    if r.on_hover_text(tip).clicked() && can {
+        app.eph.send_now = true;
+    }
+}
+
+fn menu_button(ui: &mut egui::Ui, tk: &crate::theme::Tokens, text: String, tip: &str) -> egui::Response {
+    let r = seg(ui, tk, RichText::new(text).size(tk.text_size - 1.0).color(tk.p.muted));
     r.on_hover_text(tip)
 }
 
@@ -101,7 +155,19 @@ fn model_menu(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
         app.data.caps.get(&key).and_then(|c| c["models"].as_array().cloned()).unwrap_or_default()
     };
     let current = if provider == "claude" {
-        lazyaicode_doc::MODELS.iter().find(|m| m.0 == th.thread.model).map(|m| label_of(m.1)).unwrap_or_else(|| th.thread.model.clone())
+        let from_caps = |v: &str| caps_models.iter().find(|m| m["value"] == v).cloned();
+        if th.thread.model == "default" {
+            // o modelo padrão da conta, como o `claude` descreve ("Opus 5.5 · …")
+            from_caps("default")
+                .and_then(|m| m["description"].as_str().and_then(|d| d.split('·').next()).map(|d| d.trim().to_string()))
+                .filter(|d| !d.is_empty())
+                .unwrap_or_else(|| t("footer.modelDefault"))
+        } else {
+            from_caps(&th.thread.model)
+                .and_then(|m| m["displayName"].as_str().map(str::to_string))
+                .or_else(|| lazyaicode_doc::MODELS.iter().find(|m| m.0 == th.thread.model).map(|m| label_of(m.1)))
+                .unwrap_or_else(|| th.thread.model.clone())
+        }
     } else {
         let cur = acp.as_ref().and_then(|a| a["currentModel"].as_str().map(str::to_string)).unwrap_or_else(|| th.thread.model.clone());
         let name = acp
@@ -112,7 +178,7 @@ fn model_menu(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
         name.unwrap_or(if cur.is_empty() { t("footer.agentDefault") } else { cur })
     };
     let pshort = lazyaicode_doc::PROVIDERS.iter().find(|p| p.0 == provider).map_or("", |p| p.1);
-    let r = menu_button(ui, &tk, format!("{} {current}", icon::CPU), &format!("{pshort} · {}", t("footer.model")));
+    let r = menu_button(ui, &tk, format!("{}  {current}", icon::SPARKLE), &format!("{pshort} · {}", t("footer.model")));
     egui::Popup::menu(&r).show(|ui| {
         ui.set_min_width(220.0);
         if th.thread.session_id.is_none() {
@@ -162,7 +228,7 @@ fn effort_menu(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
     let id = th.thread.id.clone();
     let cur = th.thread.effort.clone().unwrap_or_default();
     let label = lazyaicode_doc::EFFORTS.iter().find(|e| e.0 == cur).map(|e| label_of(e.1)).unwrap_or(cur.clone());
-    let r = menu_button(ui, &tk, format!("{} {label}", icon::LIGHTBULB), &t("footer.effort"));
+    let r = menu_button(ui, &tk, format!("{}  {label}", icon::BRAIN), &t("footer.effort"));
     egui::Popup::menu(&r).show(|ui| {
         for (e, l) in lazyaicode_doc::EFFORTS {
             if ui.selectable_label(cur == e, label_of(l)).clicked() {
@@ -183,7 +249,7 @@ fn mode_menu(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
         }
         let cur = acp.as_ref().and_then(|a| a["currentMode"].as_str().map(str::to_string)).unwrap_or_default();
         let name = modes.iter().find(|m| m["id"] == cur.as_str()).and_then(|m| m["name"].as_str()).unwrap_or(&cur).to_string();
-        let r = menu_button(ui, &tk, format!("{} {name}", icon::HAND), &t("footer.mode"));
+        let r = menu_button(ui, &tk, format!("{}  {name}", icon::SHIELD), &t("footer.mode"));
         egui::Popup::menu(&r).show(|ui| {
             for m in &modes {
                 let mid = m["id"].as_str().unwrap_or("").to_string();
@@ -199,20 +265,36 @@ fn mode_menu(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
         return;
     }
     let cur = th.thread.permission_mode.clone();
-    let label = lazyaicode_doc::PERMISSION_MODES.iter().find(|m| m.0 == cur).map(|m| label_of(m.1)).unwrap_or(cur.clone());
-    let color_icon = if cur == "bypassPermissions" {
-        icon::WARNING
-    } else if cur == "plan" {
-        icon::LIST_CHECKS
+    let skip = th.thread.skip_permissions;
+    // o padrão mostra só o escudo; sem permissões é o último "modo", em vermelho
+    let label = if skip {
+        t("footer.noPermissions")
+    } else if cur == "default" {
+        String::new()
     } else {
-        icon::HAND
+        lazyaicode_doc::PERMISSION_MODES.iter().find(|m| m.0 == cur).map(|m| label_of(m.1)).unwrap_or(cur.clone())
     };
-    let r = menu_button(ui, &tk, format!("{color_icon} {label}"), &format!("{} (Shift+Tab)", t("footer.mode")));
+    let ic = if skip { icon::WARNING } else { icon::SHIELD };
+    let text = if label.is_empty() { ic.to_string() } else { format!("{ic}  {label}") };
+    let color = if skip { tk.p.red } else { tk.p.muted };
+    let r = seg(ui, &tk, RichText::new(text).size(tk.text_size - 1.0).color(color));
+    let r = r.on_hover_text(format!("{} (Shift+Tab)", t("footer.permissions")));
     egui::Popup::menu(&r).show(|ui| {
+        ui.set_min_width(240.0);
+        ui.label(widgets::faint(&tk, t("footer.groupMode")));
         for (m, l) in lazyaicode_doc::PERMISSION_MODES {
-            if ui.selectable_label(cur == m, label_of(l)).clicked() {
+            if ui.selectable_label(!skip && cur == m, label_of(l)).clicked() {
+                if skip {
+                    let _ = crate::commands::run_ui(app, "ui.thread.skip-permissions.toggle", &Value::Null);
+                }
                 set(app, "thread.set-permission-mode", json!({ "id": id, "mode": m }));
             }
+        }
+        ui.separator();
+        ui.label(widgets::faint(&tk, t("footer.groupNoConfirm")));
+        let r = ui.selectable_label(skip, RichText::new(format!("{}  {}", icon::WARNING, t("footer.skipAll"))).color(tk.p.red));
+        if r.on_hover_text("--dangerously-skip-permissions").clicked() && !skip {
+            let _ = crate::commands::run_ui(app, "ui.thread.skip-permissions.toggle", &Value::Null);
         }
     });
 }

@@ -49,6 +49,8 @@ pub struct Ephemeral {
     pub preview_image: Option<String>,
     pub scroll_to_bottom: bool,
     pub focus_composer: bool,
+    /// o botão de enviar do rodapé foi clicado: o campo envia no próximo quadro
+    pub send_now: bool,
     pub confirm: Option<(String, String, Value)>,
     pub land_open: bool,
     pub git: crate::views::git::GitUi,
