@@ -1,0 +1,48 @@
+import type { Messages } from '../index.svelte'
+
+export default {
+  en: {
+    title: 'MCP servers in this session',
+    threadSession: "this thread's session",
+    configured: 'configured in the project',
+    refresh: 'Refresh',
+    reconnect: 'Reconnect',
+    toggle: 'Turn on/off in this session',
+    none: 'No MCP servers.',
+    note: 'Send a message to open the session and be able to turn servers on, off or reconnect them.',
+    details: 'See details in Settings → MCP',
+  },
+  pt: {
+    title: 'Servidores MCP desta sessão',
+    threadSession: 'sessão desta thread',
+    configured: 'configurados no projeto',
+    refresh: 'Atualizar',
+    reconnect: 'Reconectar',
+    toggle: 'Ligar/desligar nesta sessão',
+    none: 'Nenhum servidor MCP.',
+    note: 'Envie uma mensagem para abrir a sessão e poder ligar, desligar ou reconectar servidores.',
+    details: 'Ver detalhes em Configurações → MCP',
+  },
+  es: {
+    title: 'Servidores MCP de esta sesión',
+    threadSession: 'sesión de esta thread',
+    configured: 'configurados en el proyecto',
+    refresh: 'Actualizar',
+    reconnect: 'Reconectar',
+    toggle: 'Activar/desactivar en esta sesión',
+    none: 'Ningún servidor MCP.',
+    note: 'Envía un mensaje para abrir la sesión y poder activar, desactivar o reconectar servidores.',
+    details: 'Ver detalles en Configuración → MCP',
+  },
+  zh: {
+    title: '此会话的 MCP 服务器',
+    threadSession: '此 thread 的会话',
+    configured: '项目中已配置',
+    refresh: '刷新',
+    reconnect: '重新连接',
+    toggle: '在此会话中开启/关闭',
+    none: '没有 MCP 服务器。',
+    note: '发送一条消息以打开会话，之后即可开启、关闭或重新连接服务器。',
+    details: '在 设置 → MCP 中查看详情',
+  },
+} satisfies Messages

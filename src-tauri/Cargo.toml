@@ -1,0 +1,77 @@
+[package]
+name = "lazyaicode"
+version = "0.2.0"
+edition = "2021"
+description = "LazyAICode — workspace de agentes Claude Code com threads isoladas"
+license = "MIT"
+repository = "https://github.com/filipecrespodev/lazyaicode"
+default-run = "lazyaicode"
+
+[lib]
+name = "lazyaicode_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+default = ["gui"]
+# O app desktop. Desligada para o `lazyaicode-agent`, o backend git sem
+# interface que roda dentro de uma distro WSL (e não pode linkar um webview):
+# `cargo build --no-default-features --bin lazyaicode-agent`.
+gui = [
+  "dep:tauri", "dep:tauri-build", "dep:tauri-plugin-dialog", "dep:tauri-plugin-updater",
+  "dep:tauri-plugin-process", "dep:tauri-plugin-opener", "dep:tauri-plugin-store",
+  "dep:tauri-plugin-clipboard-manager", "dep:tauri-plugin-notification",
+]
+
+[[bin]]
+name = "lazyaicode"
+path = "src/main.rs"
+required-features = ["gui"]
+
+[[bin]]
+name = "lazyaicode-agent"
+path = "src/bin/lazyaicode-agent.rs"
+# Os testes do núcleo já rodam na lib; aqui seriam os mesmos, de novo.
+test = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [], optional = true }
+
+[dependencies]
+tauri = { version = "2", features = [], optional = true }
+tauri-plugin-dialog = { version = "2", optional = true }
+tauri-plugin-updater = { version = "2", optional = true }
+tauri-plugin-process = { version = "2", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["process", "io-util", "sync", "rt-multi-thread", "macros", "time"] }
+uuid = { version = "1", features = ["v4"] }
+anyhow = "1"
+portable-pty = "0.9"
+base64 = "0.22"
+dirs = "6"
+parking_lot = "0.12"
+chrono = { version = "0.4", features = ["serde"] }
+trash = "5"
+# cliente git (visão "Git")
+tauri-plugin-opener = { version = "2", optional = true }
+tauri-plugin-store = { version = "2", optional = true }
+tauri-plugin-clipboard-manager = { version = "2", optional = true }
+git2 = { version = "0.21", features = ["vendored-libgit2", "vendored-openssl", "ssh"] }
+thiserror = "2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+md5 = "0.8"
+tauri-plugin-notification = { version = "2", optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+
+# `tauri dev`: dependências (libgit2, openssl, git2…) otimizadas como em
+# release; só o código do app fica sem otimização, para recompilar rápido.
+# Sem isso o libgit2 roda em -O0 e status/log/diff ficam bem mais lentos.
+[profile.dev.package."*"]
+opt-level = 3

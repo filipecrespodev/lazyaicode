@@ -1,0 +1,7 @@
+minimumReleaseAgeExclude:
+  - '@tauri-apps/plugin-clipboard-manager@2.5.0'
+  - '@tauri-apps/plugin-opener@2.7.2'
+  - lucide-react@1.57.0
+  - react-dom@19.3.1
+  - react@19.3.1
+  - '@tauri-apps/plugin-notification@2.7.0'

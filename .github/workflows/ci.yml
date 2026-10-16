@@ -1,0 +1,77 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: src-tauri }
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
+      - run: npm ci
+      - run: npm test
+      - if: runner.os == 'Linux'
+        run: npm run check
+      # o build do frontend gera o dist/ que o tauri embute ao compilar
+      - run: npm run build
+      - run: cargo test
+        working-directory: src-tauri
+
+  # O binário Linux rodando dentro do WSL (como o usuário roda via WSLg).
+  # Runners hospedados só têm WSL1, mas o que importa aqui é o mesmo: kernel
+  # "Microsoft", /mnt/c, wslpath, e o app subindo com o WebKitGTK.
+  wsl:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: wsl-bash {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: frontend (no Windows; o dist/ é copiado para o WSL)
+        shell: pwsh
+        run: |
+          npm ci
+          npm run build
+      - uses: Vampire/setup-wsl@v5
+        with:
+          distribution: Ubuntu-24.04
+          additional-packages: build-essential curl git pkg-config libssl-dev libwebkit2gtk-4.1-dev librsvg2-dev libayatana-appindicator3-dev xvfb xauth dbus-x11
+      - name: rust
+        run: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+      - name: testes do backend dentro do WSL
+        run: |
+          . "$HOME/.cargo/env"
+          # compila no ext4 do WSL: no /mnt/c (DrvFs) fica muito mais lento
+          rm -rf ~/app && cp -r . ~/app && cd ~/app/src-tauri
+          git config --global user.email ci@lazyaicode && git config --global user.name ci
+          uname -a && cat /proc/sys/kernel/osrelease
+          EXPECT_WSL=1 cargo test
+      - name: o app abre no WSL (xvfb) e fica de pé
+        run: |
+          . "$HOME/.cargo/env"
+          cd ~/app/src-tauri
+          cargo build
+          export LAZYAICODE_DATA_DIR=$(mktemp -d)
+          set +e
+          xvfb-run -a timeout 20 dbus-launch ./target/debug/lazyaicode > app.log 2>&1
+          code=$?
+          set -e
+          cat app.log
+          # 124 = derrubado pelo timeout, ou seja, ficou aberto os 20s
+          [ "$code" = 124 ] || { echo "o app saiu com $code"; exit 1; }

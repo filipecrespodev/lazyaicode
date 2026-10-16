@@ -1,0 +1,329 @@
+/* Symbols Nerd Font (MIT, ver assets/fonts) embutida para os prompts do
+ * terminal (Powerlevel10k, oh-my-posh, starship) mostrarem os ícones mesmo sem
+ * Nerd Font instalada. Só a faixa de uso privado vem dela; as letras continuam
+ * na fonte do usuário. */
+@font-face {
+  font-family: "LazyAICode Symbols";
+  src: url("./assets/fonts/SymbolsNerdFontMono.woff2") format("woff2");
+  unicode-range: U+E000-F8FF, U+F0000-FFFFD;
+}
+
+:root {
+  --bg: #16171b;
+  --bg-elev: #1d1f24;
+  --bg-panel: #1a1c20;
+  --bg-hover: #25282e;
+  --bg-active: #2c3038;
+  --bg-input: #121317;
+  --border: #2b2e35;
+  --border-strong: #3a3e47;
+  --text: #dcdfe4;
+  --text-muted: #8b919c;
+  --text-faint: #5f6570;
+  --accent: #3fb47a;
+  --accent-soft: rgba(63, 180, 122, 0.14);
+  --on-accent: #16171b;
+  --blue: #5aa7f0;
+  --amber: #e5b04a;
+  --red: #ec6a6a;
+  --add-bg: rgba(63, 180, 122, 0.13);
+  --add-fg: #7ad3a2;
+  --del-bg: rgba(236, 106, 106, 0.13);
+  --del-fg: #f09a9a;
+  --radius: 8px;
+  --radius-sm: 5px;
+  --mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', ui-monospace, Menlo, monospace;
+  --sans: 'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-mode='dark']) {
+    --bg: #fbfbfc;
+    --bg-elev: #ffffff;
+    --bg-panel: #f4f5f7;
+    --bg-hover: #eceef1;
+    --bg-active: #e3e6ea;
+    --bg-input: #ffffff;
+    --border: #e1e4e8;
+    --border-strong: #cfd4da;
+    --text: #1f2328;
+    --text-muted: #5d6570;
+    --text-faint: #8d949e;
+    --accent: #1f9a5b;
+    --accent-soft: rgba(31, 154, 91, 0.1);
+    --add-bg: rgba(31, 154, 91, 0.1);
+    --add-fg: #19774a;
+    --del-bg: rgba(207, 34, 46, 0.08);
+    --del-fg: #b42330;
+    color-scheme: light;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  /* --text-size/--code-size: fontes da Aparência (src/lib/fonts.ts) */
+  font-size: var(--text-size, 13px);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+code,
+pre,
+.mono {
+  font-family: var(--mono);
+  font-size: var(--code-size, 12px);
+}
+
+.selectable {
+  user-select: text;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.btn.primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: var(--accent);
+}
+.btn.danger {
+  color: var(--red);
+}
+.btn.ghost {
+  border-color: transparent;
+  background: transparent;
+}
+.btn.ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.btn.icon {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+}
+
+.select {
+  height: 26px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+}
+.select:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.select option {
+  background: var(--bg-elev);
+  color: var(--text);
+}
+
+.kbd {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: var(--bg-panel);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.badge.accent {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: var(--accent-soft);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.dot.running {
+  background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.dot.awaiting {
+  background: var(--amber);
+}
+.dot.error {
+  background: var(--red);
+}
+.dot.unread {
+  background: var(--blue);
+}
+/* anel girando no lugar do ponto enquanto o agente trabalha */
+.spinner {
+  width: 10px;
+  height: 10px;
+  /* ocupa o mesmo espaço de um .dot (7px) para não deslocar o texto ao lado */
+  margin: -1.5px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
+  }
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.md {
+  user-select: text;
+  line-height: 1.6;
+  font-size: calc(var(--text-size, 13px) + 0.5px);
+  overflow-wrap: anywhere;
+}
+.md > :first-child {
+  margin-top: 0;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md p {
+  margin: 0 0 10px;
+}
+.md h1,
+.md h2,
+.md h3 {
+  font-size: calc(var(--text-size, 13px) + 1.5px);
+  margin: 16px 0 8px;
+}
+.md code {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.md pre {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+.md pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+.md a {
+  color: var(--blue);
+}
+.md table {
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+.md th,
+.md td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+}
+.md blockquote {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-muted);
+}
+.md ul,
+.md ol {
+  padding-left: 22px;
+  margin: 0 0 10px;
+}
+
+/* selos de provedor */
+.prov-codex {
+  background: rgba(16, 163, 127, 0.16);
+  color: #34c79b;
+  border-color: rgba(16, 163, 127, 0.4) !important;
+}
+.prov-gemini {
+  background: rgba(66, 133, 244, 0.16);
+  color: #6ea6ff;
+  border-color: rgba(66, 133, 244, 0.4) !important;
+}

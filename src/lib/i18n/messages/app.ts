@@ -1,0 +1,48 @@
+import type { Messages } from '../index.svelte'
+
+export default {
+  en: {
+    thread: 'Thread',
+    finishedWithError: 'Finished with an error',
+    finishedWithErrorDetail: 'Finished with an error: {detail}',
+    done: 'Done',
+    needsPermission: 'Needs permission to use {tool}',
+    importedOne: '{n} Claude Code session imported',
+    importedOther: '{n} Claude Code sessions imported',
+    importFailed: 'Failed to read existing sessions: {error}',
+    historyFailed: 'Could not read the history: {error}',
+  },
+  pt: {
+    thread: 'Thread',
+    finishedWithError: 'Terminou com erro',
+    finishedWithErrorDetail: 'Terminou com erro: {detail}',
+    done: 'Pronto',
+    needsPermission: 'Precisa de permissão para usar {tool}',
+    importedOne: '{n} sessão do Claude Code importada',
+    importedOther: '{n} sessões do Claude Code importadas',
+    importFailed: 'Falha ao ler as sessões existentes: {error}',
+    historyFailed: 'Não foi possível ler o histórico: {error}',
+  },
+  es: {
+    thread: 'Thread',
+    finishedWithError: 'Terminó con un error',
+    finishedWithErrorDetail: 'Terminó con un error: {detail}',
+    done: 'Listo',
+    needsPermission: 'Necesita permiso para usar {tool}',
+    importedOne: '{n} sesión de Claude Code importada',
+    importedOther: '{n} sesiones de Claude Code importadas',
+    importFailed: 'Error al leer las sesiones existentes: {error}',
+    historyFailed: 'No se pudo leer el historial: {error}',
+  },
+  zh: {
+    thread: 'Thread',
+    finishedWithError: '运行出错结束',
+    finishedWithErrorDetail: '运行出错结束：{detail}',
+    done: '完成',
+    needsPermission: '需要权限才能使用 {tool}',
+    importedOne: '已导入 {n} 个 Claude Code 会话',
+    importedOther: '已导入 {n} 个 Claude Code 会话',
+    importFailed: '读取现有会话失败：{error}',
+    historyFailed: '无法读取历史记录：{error}',
+  },
+} satisfies Messages

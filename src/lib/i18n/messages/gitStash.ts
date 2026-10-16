@@ -1,0 +1,48 @@
+import type { Messages } from '../index.svelte'
+
+export default {
+  en: {
+    popConflicts: "Stash pop produced conflicts in: {files} — resolve them manually.",
+    applyConflicts: "Applying the stash produced conflicts in: {files} — resolve them manually.",
+    apply: "Apply",
+    applyAndDrop: "Apply and drop (pop)",
+    delete: "Delete",
+    deleteConfirm: "Delete stash \"{message}\"? This can't be undone.",
+    deleteTitle: "Delete stash",
+    changedFilesOne: "{count} changed file",
+    changedFilesOther: "{count} changed files",
+  },
+  pt: {
+    popConflicts: "O pop do stash gerou conflitos em: {files} — resolva manualmente.",
+    applyConflicts: "A aplicação do stash gerou conflitos em: {files} — resolva manualmente.",
+    apply: "Aplicar",
+    applyAndDrop: "Aplicar e remover (pop)",
+    delete: "Excluir",
+    deleteConfirm: "Excluir o stash \"{message}\"? Essa ação não pode ser desfeita.",
+    deleteTitle: "Excluir stash",
+    changedFilesOne: "{count} arquivo alterado",
+    changedFilesOther: "{count} arquivos alterados",
+  },
+  es: {
+    popConflicts: "El pop del stash generó conflictos en: {files} — resuélvelos manualmente.",
+    applyConflicts: "Aplicar el stash generó conflictos en: {files} — resuélvelos manualmente.",
+    apply: "Aplicar",
+    applyAndDrop: "Aplicar y eliminar (pop)",
+    delete: "Eliminar",
+    deleteConfirm: "¿Eliminar el stash \"{message}\"? Esta acción no se puede deshacer.",
+    deleteTitle: "Eliminar stash",
+    changedFilesOne: "{count} archivo modificado",
+    changedFilesOther: "{count} archivos modificados",
+  },
+  zh: {
+    popConflicts: "弹出储藏时产生了冲突：{files}，请手动解决。",
+    applyConflicts: "应用储藏时产生了冲突：{files}，请手动解决。",
+    apply: "应用",
+    applyAndDrop: "应用并删除（pop）",
+    delete: "删除",
+    deleteConfirm: "删除储藏“{message}”？此操作无法撤销。",
+    deleteTitle: "删除储藏",
+    changedFilesOne: "{count} 个文件已更改",
+    changedFilesOther: "{count} 个文件已更改",
+  },
+} satisfies Messages

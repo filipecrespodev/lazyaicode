@@ -1,0 +1,53 @@
+import type { Messages } from '../index.svelte'
+
+// `sub` tem marcação estática (<b>) e é renderizado com {@html}.
+export default {
+  en: {
+    title: 'Which workspaces to open?',
+    sub: 'Each one becomes a tab at the top. You can open or close others later with the <b>+</b> in the bar.',
+    account: 'Account {account}',
+    unselectAll: 'Unselect all',
+    selectAll: 'Select all',
+    newWorkspace: 'New workspace',
+    cancel: 'Cancel',
+    open: 'Open',
+    openOne: 'Open workspace',
+    openMany: 'Open {n} workspaces',
+  },
+  pt: {
+    title: 'Quais workspaces abrir?',
+    sub: 'Cada um vira uma aba no topo. Dá para abrir ou fechar outros depois pelo <b>+</b> da barra.',
+    account: 'Conta {account}',
+    unselectAll: 'Desmarcar todos',
+    selectAll: 'Marcar todos',
+    newWorkspace: 'Novo workspace',
+    cancel: 'Cancelar',
+    open: 'Abrir',
+    openOne: 'Abrir workspace',
+    openMany: 'Abrir {n} workspaces',
+  },
+  es: {
+    title: '¿Qué workspaces abrir?',
+    sub: 'Cada uno se convierte en una pestaña arriba. Puedes abrir o cerrar otros después con el <b>+</b> de la barra.',
+    account: 'Cuenta {account}',
+    unselectAll: 'Desmarcar todos',
+    selectAll: 'Marcar todos',
+    newWorkspace: 'Nuevo workspace',
+    cancel: 'Cancelar',
+    open: 'Abrir',
+    openOne: 'Abrir workspace',
+    openMany: 'Abrir {n} workspaces',
+  },
+  zh: {
+    title: '要打开哪些 workspace？',
+    sub: '每个都会成为顶部的一个标签页。之后可以通过栏上的 <b>+</b> 打开或关闭其他 workspace。',
+    account: '账号 {account}',
+    unselectAll: '全部取消',
+    selectAll: '全部选择',
+    newWorkspace: '新建 workspace',
+    cancel: '取消',
+    open: '打开',
+    openOne: '打开 workspace',
+    openMany: '打开 {n} 个 workspace',
+  },
+} satisfies Messages

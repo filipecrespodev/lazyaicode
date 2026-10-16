@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="200 150 624 620" fill="none" role="img" aria-label="LazyAICode">
+  <g stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path stroke-width="62" d="M372 316C306 316 300 346 300 400V462C300 496 284 514 248 514C284 514 300 532 300 566V628C300 682 306 712 372 712"/>
+    <path stroke-width="62" d="M652 316C718 316 724 346 724 400V462C724 496 740 514 776 514C740 514 724 532 724 566V628C724 682 718 712 652 712"/>
+    <path stroke-width="30" d="M536 236H600L536 300H600"/>
+    <path stroke-width="22" stroke-opacity=".7" d="M636 176H676L636 216H676"/>
+  </g>
+  <path fill="currentColor" d="M334 452Q512 690 690 452Q512 588 334 452Z"/>
+</svg>
