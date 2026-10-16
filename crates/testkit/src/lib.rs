@@ -2,7 +2,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 /// Roda `git` em `dir` e falha o teste se der erro.
@@ -26,7 +26,7 @@ pub fn init_repo(dir: &Path) {
 /// Um `claude` falso (script sh) que anuncia a sessão `sess-1` e, a cada
 /// mensagem do usuário, responde `reply` e fecha o turno. Só Unix.
 #[cfg(unix)]
-pub fn fake_claude(dir: &Path, reply: &str) -> PathBuf {
+pub fn fake_claude(dir: &Path, reply: &str) -> std::path::PathBuf {
     use std::os::unix::fs::PermissionsExt;
     let bin = dir.join("fake-claude");
     let reply = reply.replace('\\', "\\\\").replace('"', "\\\"").replace('\'', "");
