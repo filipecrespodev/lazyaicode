@@ -115,7 +115,7 @@ for f in sorted(os.listdir(SRC)):
         for a in split_args(args):
             an, at = [x.strip() for x in a.split(":", 1)]
             if at == "&AppState":
-                call.append("&e.git()"); continue
+                call.append("e.git()"); continue
             if at == "&crate::Engine":
                 call.append("&e"); continue
             params.append((an, at))

@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::Mutex;
 
@@ -171,8 +171,19 @@ impl AgentManager {
         let procs = self.procs.clone();
         let pending = self.pending.clone();
         tokio::spawn(async move {
-            let mut lines = BufReader::new(stdout).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
+            let mut lines = crate::lines::BoundedLines::new(stdout, crate::lines::MAX_AGENT_LINE);
+            while let Ok(Some(next)) = lines.next().await {
+                let line = match next {
+                    crate::lines::Line::Text(l) => l,
+                    crate::lines::Line::TooLong(n) => {
+                        let text = format!(
+                            "O agente mandou uma linha de {n} bytes (acima de {} MiB); ela foi descartada.",
+                            crate::lines::MAX_AGENT_LINE >> 20
+                        );
+                        sink(&tid, AgentOut::Message(json!({ "type": "lazy_notice", "text": text })));
+                        continue;
+                    }
+                };
                 if line.trim().is_empty() {
                     continue;
                 }
@@ -274,6 +285,7 @@ impl AgentManager {
         Ok(resp["response"].clone())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn respond_permission(
         &self,
         thread_id: &str,
@@ -328,18 +340,20 @@ pub async fn probe(bin: &std::path::Path, claude_dir: &std::path::Path, cwd: &st
     cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).kill_on_drop(true);
     let mut child = cmd.spawn().map_err(|e| anyhow!("Não foi possível iniciar o Claude CLI: {e}"))?;
     let mut stdin = child.stdin.take().ok_or_else(|| anyhow!("sem stdin"))?;
-    let mut lines = BufReader::new(child.stdout.take().ok_or_else(|| anyhow!("sem stdout"))?).lines();
+    let mut lines =
+        crate::lines::BoundedLines::new(child.stdout.take().ok_or_else(|| anyhow!("sem stdout"))?, crate::lines::MAX_AGENT_LINE);
 
     async fn ask(
         stdin: &mut ChildStdin,
-        lines: &mut tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
+        lines: &mut crate::lines::BoundedLines<tokio::process::ChildStdout>,
         id: &str,
         req: Value,
     ) -> Result<Value> {
         let line = json!({ "type": "control_request", "request_id": id, "request": req }).to_string() + "\n";
         stdin.write_all(line.as_bytes()).await?;
         stdin.flush().await?;
-        while let Some(l) = lines.next_line().await? {
+        while let Some(l) = lines.next().await? {
+            let crate::lines::Line::Text(l) = l else { continue };
             let Ok(v) = serde_json::from_str::<Value>(&l) else { continue };
             if v["type"] == "control_response" && v["response"]["request_id"] == id {
                 if v["response"]["subtype"] == "error" {
@@ -381,7 +395,7 @@ mod tests {
     #[test]
     fn user_content_puts_images_before_text() {
         let img = ImageInput { mime: "image/png".into(), data: "AAAA".into() };
-        let c = user_content("o que é isso?", &[img.clone()]);
+        let c = user_content("o que é isso?", std::slice::from_ref(&img));
         assert_eq!(c[0], json!({ "type": "image", "source": { "type": "base64", "media_type": "image/png", "data": "AAAA" } }));
         assert_eq!(c[1], json!({ "type": "text", "text": "o que é isso?" }));
         // só imagem: sem bloco de texto vazio

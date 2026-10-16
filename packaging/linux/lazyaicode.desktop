@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=LazyAICode
+GenericName=AI coding agents workspace
+Comment=Threads de agentes de código (Claude Code, Codex, Gemini) com checkouts isolados, revisão de diff e git
+Exec=lazyaicode %U
+Icon=lazyaicode
+Terminal=false
+Categories=Development;IDE;
+Keywords=claude;codex;gemini;agent;git;ai;
+StartupWMClass=lazyaicode

@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::AsyncWriteExt;
 use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::{oneshot, Mutex};
 
@@ -203,8 +203,9 @@ impl AcpManager {
         let err_buf = Arc::new(parking_lot::Mutex::new(String::new()));
         let eb = err_buf.clone();
         tokio::spawn(async move {
-            let mut lines = BufReader::new(stderr).lines();
-            while let Ok(Some(l)) = lines.next_line().await {
+            let mut lines = crate::lines::BoundedLines::new(stderr, 64 * 1024);
+            while let Ok(Some(next)) = lines.next().await {
+                let crate::lines::Line::Text(l) = next else { continue };
                 let mut s = eb.lock();
                 s.push_str(&l);
                 s.push('\n');
@@ -218,8 +219,9 @@ impl AcpManager {
 
         let (tid, c, conns) = (thread_id.to_string(), conn.clone(), self.conns.clone());
         tokio::spawn(async move {
-            let mut lines = BufReader::new(stdout).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
+            let mut lines = crate::lines::BoundedLines::new(stdout, crate::lines::MAX_AGENT_LINE);
+            while let Ok(Some(next)) = lines.next().await {
+                let crate::lines::Line::Text(line) = next else { continue };
                 let Ok(v) = serde_json::from_str::<Value>(&line) else { continue };
                 let method = v["method"].as_str().map(str::to_string);
                 match (method, v.get("id").cloned()) {

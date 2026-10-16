@@ -39,7 +39,7 @@ pub fn handle(state: &AppState, op: &str, a: Value) -> Result<Value, GitCommandE
         }
         "open_repository" => json_of(state.open_local(args(&a, "repoId")?, args(&a, "path")?)?),
         "close_repository" => {
-            state.repos.lock().unwrap().remove(&args::<String>(&a, "repoId")?);
+            state.repos.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(&args::<String>(&a, "repoId")?);
             Ok(Value::Null)
         }
         "fingerprint" => {
@@ -85,7 +85,7 @@ pub fn serve_stdio() {
     let send = {
         let out = out.clone();
         move |frame: FromAgent| {
-            let mut out = out.lock().unwrap();
+            let mut out = out.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             let _ = write_frame(&mut *out, &frame).and_then(|_| out.flush());
         }
     };

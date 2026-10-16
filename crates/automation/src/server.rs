@@ -60,7 +60,7 @@ impl Conn {
                     Err(broadcast::error::RecvError::Lagged(n)) => Event { event: "events-lagged".into(), payload: json!({ "missed": n }) },
                     Err(broadcast::error::RecvError::Closed) => return,
                 };
-                let wanted = subscribed.lock().as_ref().is_some_and(|f| f.is_empty() || f.iter().any(|e| *e == ev.event));
+                let wanted = subscribed.lock().as_ref().is_some_and(|f| f.is_empty() || f.contains(&ev.event));
                 if wanted && out.send(encode_line(&ev)).is_err() {
                     return;
                 }

@@ -4,6 +4,7 @@
 //! navegador (lá os bytes chegam pelo WebSocket).
 
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing))]
 
 /// Linhas guardadas acima da tela.
 pub const SCROLLBACK: usize = 5000;

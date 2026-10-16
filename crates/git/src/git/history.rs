@@ -282,7 +282,9 @@ pub struct BlameChunk {
 /// blamed once and every chunk is cut from that. Shared with the threads
 /// blame runs on.
 #[derive(Clone, Default)]
-pub struct BlameCache(Arc<Mutex<VecDeque<(BlameKey, Arc<Vec<BlameHunk>>)>>>);
+pub struct BlameCache(Arc<Mutex<VecDeque<BlameEntry>>>);
+
+type BlameEntry = (BlameKey, Arc<Vec<BlameHunk>>);
 
 type BlameKey = (git2::Oid, String);
 
@@ -290,12 +292,12 @@ const BLAME_CACHE_FILES: usize = 4;
 
 impl BlameCache {
     fn get(&self, key: &BlameKey) -> Option<Arc<Vec<BlameHunk>>> {
-        let files = self.0.lock().unwrap();
+        let files = self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         files.iter().find(|(k, _)| k == key).map(|(_, h)| h.clone())
     }
 
     fn put(&self, key: BlameKey, hunks: Arc<Vec<BlameHunk>>) {
-        let mut files = self.0.lock().unwrap();
+        let mut files = self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         files.retain(|(k, _)| *k != key);
         if files.len() == BLAME_CACHE_FILES {
             files.pop_front();
@@ -774,7 +776,7 @@ mod tests {
         let tail = blame(&repo, "f.txt", None, 5, 100, &cache).unwrap();
         assert_eq!(tail.lines, ["e"]);
         assert_eq!(tail.hunks.iter().map(|h| (h.start_line, h.line_count)).collect::<Vec<_>>(), [(5, 1)]);
-        assert_eq!(cache.0.lock().unwrap().len(), 2);
+        assert_eq!(cache.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).len(), 2);
     }
 
     #[test]

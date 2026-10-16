@@ -237,8 +237,7 @@ pub fn amend_message(
     let update_ref_name = head_ref.name()?.to_string();
 
     let mut chain = vec![head_ref.peel_to_commit()?];
-    while chain.last().unwrap().id().to_string() != sha {
-        let cur = chain.last().unwrap();
+    while let Some(cur) = chain.last().filter(|c| c.id().to_string() != sha) {
         match cur.parent_count() {
             0 => {
                 return Err(GitCommandError::Internal("o commit não faz parte do histórico da branch atual".into()));
@@ -284,7 +283,7 @@ pub fn amend_message(
         new_parent_oid = Some(oid);
         new_tip_oid = Some(oid);
     }
-    let new_tip_oid = new_tip_oid.expect("chain always has at least one commit");
+    let new_tip_oid = new_tip_oid.ok_or_else(|| GitCommandError::Internal("cadeia de commits vazia".into()))?;
 
     if update_ref_name == "HEAD" {
         repo.set_head_detached(new_tip_oid)?;
@@ -293,7 +292,7 @@ pub fn amend_message(
     }
     hooks::run_post(repo, "post-commit", &[]);
 
-    Ok(reworded_node.expect("chain always has at least one commit"))
+    reworded_node.ok_or_else(|| GitCommandError::Internal("cadeia de commits vazia".into()))
 }
 
 #[cfg(test)]

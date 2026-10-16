@@ -90,6 +90,8 @@ async fn serve_http(mut s: TcpStream, head: &str, root: Option<&Path>) {
     let _ = s.write_all(&resp).await;
 }
 
+// o `ErrorResponse` do tungstenite é grande, mas é a assinatura que ele pede
+#[allow(clippy::result_large_err)]
 async fn serve_ws(stream: TcpStream, backend: Arc<dyn Backend>, token: String) {
     let check = |req: &Request, resp: Response| -> Result<Response, ErrorResponse> {
         let host = req.headers().get("host").and_then(|h| h.to_str().ok()).unwrap_or("");

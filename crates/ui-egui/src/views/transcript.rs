@@ -31,7 +31,25 @@ pub fn data_url_bytes(url: &str) -> Option<Vec<u8>> {
     base64::engine::general_purpose::STANDARD.decode(b64).ok()
 }
 
+/// Maior imagem que a UI decodifica (lado e total de pixels). As imagens
+/// vêm do histórico e de anexos: um PNG pequeno pode declarar 50 000²
+/// pixels e pedir gigabytes ao ser aberto.
+pub const MAX_IMAGE_SIDE: u32 = 8192;
+pub const MAX_IMAGE_PIXELS: u64 = 40_000_000;
+
+/// As dimensões cabem nos limites? Lê só o cabeçalho.
+pub fn image_ok(bytes: &[u8]) -> bool {
+    let Ok(reader) = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format() else { return false };
+    match reader.into_dimensions() {
+        Ok((w, h)) => w <= MAX_IMAGE_SIDE && h <= MAX_IMAGE_SIDE && u64::from(w) * u64::from(h) <= MAX_IMAGE_PIXELS,
+        Err(_) => false,
+    }
+}
+
 pub fn image_thumb(ui: &mut egui::Ui, uri: String, bytes: Vec<u8>, max: f32) -> egui::Response {
+    if !image_ok(&bytes) {
+        return ui.add(egui::Label::new(RichText::new(format!("{} {}", icon::IMAGE_BROKEN, t("images.notShown")))).sense(Sense::click()));
+    }
     ui.add(egui::Image::from_bytes(uri, bytes).max_size(Vec2::splat(max)).corner_radius(CornerRadius::same(6)).sense(Sense::click()))
 }
 
@@ -319,4 +337,23 @@ pub fn to_markdown(items: &[Item]) -> String {
         }
     }
     out.trim_end().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refuses_images_whose_header_declares_a_huge_canvas() {
+        // PNG de 1x1 válido
+        let mut ok = Vec::new();
+        image::RgbaImage::new(1, 1).write_to(&mut std::io::Cursor::new(&mut ok), image::ImageFormat::Png).unwrap();
+        assert!(image_ok(&ok));
+        // o mesmo arquivo com o IHDR dizendo 60000 x 60000
+        let mut bomb = ok.clone();
+        bomb[16..20].copy_from_slice(&60_000u32.to_be_bytes());
+        bomb[20..24].copy_from_slice(&60_000u32.to_be_bytes());
+        assert!(!image_ok(&bomb));
+        assert!(!image_ok(b"nada"));
+    }
 }

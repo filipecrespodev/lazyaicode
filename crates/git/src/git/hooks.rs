@@ -176,10 +176,20 @@ fn spawn(hook: &Path, args: &[&str], workdir: &Path, repo: &git2::Repository) ->
     if cfg!(windows) {
         return build(true).spawn();
     }
-    match build(false).spawn() {
-        // A script without a shebang: git falls back to sh, so do we.
-        Err(e) if e.raw_os_error() == Some(8 /* ENOEXEC */) => build(true).spawn(),
-        r => r,
+    // ETXTBSY: the hook was just written (husky, a test) and another thread
+    // forked while its write fd was still open, so exec sees it "busy" for a
+    // few ms. Git itself never hits this (single-threaded); we retry briefly.
+    let mut tries = 0;
+    loop {
+        match build(false).spawn() {
+            // A script without a shebang: git falls back to sh, so do we.
+            Err(e) if e.raw_os_error() == Some(8 /* ENOEXEC */) => return build(true).spawn(),
+            Err(e) if e.raw_os_error() == Some(26 /* ETXTBSY */) && tries < 20 => {
+                tries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            r => return r,
+        }
     }
 }
 

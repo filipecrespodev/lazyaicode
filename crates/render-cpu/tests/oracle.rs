@@ -31,7 +31,11 @@ fn cpu_image() -> image::RgbaImage {
     let mut tex = lazyaicode_render_cpu::Textures::new();
     let mut prims = Vec::new();
     for i in 0..4 {
-        let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SIZE)), time: Some(f64::from(i) * 0.1), ..Default::default() };
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SIZE)),
+            time: Some(f64::from(i) * 0.1),
+            ..Default::default()
+        };
         // o mesmo quadro que o harness do kittest põe em volta da UI
         let mut out = ctx.run_ui(input, |ui| {
             egui::Frame::central_panel(ui.style()).outer_margin(8.0).inner_margin(0.0).show(ui, scene);

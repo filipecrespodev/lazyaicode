@@ -52,6 +52,7 @@ pub struct Ephemeral {
     pub confirm: Option<(String, String, Value)>,
     pub land_open: bool,
     pub git: crate::views::git::GitUi,
+    pub extra: crate::views::git_extra::Extra,
     pub settings_ws_name: String,
     pub ignored_draft: Vec<String>,
     /// resultado de um comando de leitura rodado pela paleta (título, JSON)
@@ -723,6 +724,7 @@ impl LazyApp {
         crate::views::settings::show(self, &ctx);
         crate::views::workspace_picker::new_workspace_modal(self, &ctx);
         crate::views::dialogs::show(self, &ctx);
+        crate::views::git_extra::show_windows(self, &ctx);
         crate::views::toasts::show(self, &ctx);
         if let Some(text) = self.eph.copy_request.take() {
             ctx.copy_text(text);

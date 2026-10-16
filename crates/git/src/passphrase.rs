@@ -16,15 +16,15 @@ static LAST_CANCEL: Mutex<(u64, Option<PathBuf>)> = Mutex::new((0, None));
 /// Cached passphrase for `key`, or asks the UI (blocking until answered).
 /// `None` if the user cancelled or there is no UI (tests).
 pub fn get(key: &Path) -> Option<String> {
-    let round_before = LAST_CANCEL.lock().unwrap().0;
-    let _guard = PROMPT_LOCK.lock().unwrap();
-    if let Some(p) = CACHE.lock().unwrap().get_or_insert_default().get(key) {
+    let round_before = LAST_CANCEL.lock().unwrap_or_else(std::sync::PoisonError::into_inner).0;
+    let _guard = PROMPT_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(p) = CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_or_insert_default().get(key) {
         return Some(p.clone());
     }
     {
         // A prompt for this key was cancelled while we waited: honour it
         // (e.g. a workspace "Fetch all" running several at once).
-        let last = LAST_CANCEL.lock().unwrap();
+        let last = LAST_CANCEL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         if last.0 != round_before && last.1.as_deref() == Some(key) {
             return None;
         }
@@ -34,40 +34,40 @@ pub fn get(key: &Path) -> Option<String> {
     }
     let (tx, rx) = channel();
     let key_str = key.display().to_string();
-    *PENDING.lock().unwrap() = Some((key_str.clone(), tx));
+    *PENDING.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some((key_str.clone(), tx));
     // The event can fire before the UI is listening (app launch); the UI also
     // polls `pending_ssh_passphrase` on mount, so the request isn't lost.
     crate::events::emit("ssh-passphrase-request", key_str);
     let answer = rx.recv().ok().flatten();
     {
-        let mut last = LAST_CANCEL.lock().unwrap();
+        let mut last = LAST_CANCEL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         last.0 += 1;
         last.1 = answer.is_none().then(|| key.to_path_buf());
     }
     let answer = answer?;
-    CACHE.lock().unwrap().get_or_insert_default().insert(key.to_path_buf(), answer.clone());
+    CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_or_insert_default().insert(key.to_path_buf(), answer.clone());
     Some(answer)
 }
 
 /// Passphrase already given for `key` this session, without asking.
 pub fn cached(key: &Path) -> Option<String> {
-    CACHE.lock().unwrap().get_or_insert_default().get(key).cloned()
+    CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_or_insert_default().get(key).cloned()
 }
 
 /// Drops a passphrase that didn't work so the next use asks again.
 pub fn forget(key: &Path) {
-    CACHE.lock().unwrap().get_or_insert_default().remove(key);
+    CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_or_insert_default().remove(key);
 }
 
 pub fn submit_ssh_passphrase(passphrase: Option<String>) {
-    if let Some((_, tx)) = PENDING.lock().unwrap().take() {
+    if let Some((_, tx)) = PENDING.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take() {
         let _ = tx.send(passphrase);
     }
 }
 
 /// Key currently waiting for a passphrase, if any.
 pub fn pending_ssh_passphrase() -> Option<String> {
-    PENDING.lock().unwrap().as_ref().map(|(key, _)| key.clone())
+    PENDING.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref().map(|(key, _)| key.clone())
 }
 
 /// True if the private key file needs a passphrase. OpenSSH-format keys carry
@@ -122,7 +122,7 @@ mod tests {
     fn cached_never_prompts() {
         let key = Path::new("/tests/cached-never-prompts");
         assert_eq!(cached(key), None);
-        CACHE.lock().unwrap().get_or_insert_default().insert(key.into(), "pw".into());
+        CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_or_insert_default().insert(key.into(), "pw".into());
         assert_eq!(cached(key).as_deref(), Some("pw"));
         forget(key);
         assert_eq!(cached(key), None);

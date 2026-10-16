@@ -51,3 +51,7 @@ assets = [
   { source = "../../packaging/linux/lazyaicode.desktop", dest = "/usr/share/applications/lazyaicode.desktop", mode = "644" },
   { source = "../../assets/icons/128x128.png", dest = "/usr/share/icons/hicolor/128x128/apps/lazyaicode.png", mode = "644" },
 ]
+
+[package.metadata.wix]
+include = ["../../packaging/windows/wix/main.wxs"]
+eula = false

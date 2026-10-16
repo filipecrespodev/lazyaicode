@@ -1,0 +1,6 @@
+target
+**/dist
+packaging/out
+book/output
+fuzz/target
+.git

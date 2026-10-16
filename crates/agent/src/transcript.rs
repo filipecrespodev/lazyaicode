@@ -7,10 +7,49 @@ use std::path::Path;
 
 /// Mensagens `user`/`assistant` da conversa principal, no mesmo formato que
 /// chega pelo stream — a UI usa um único renderizador para as duas origens.
+/// Linhas lidas por mensagem no máximo (uma imagem colada em base64 cabe).
+pub const MAX_LINE: usize = 64 << 20;
+/// Mensagens guardadas de uma sessão (as mais recentes).
+pub const MAX_MESSAGES: usize = 50_000;
+
 pub fn load(file: &Path) -> Vec<Value> {
-    let Ok(text) = std::fs::read_to_string(file) else { return Vec::new() };
-    text.lines()
-        .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+    use std::io::BufRead;
+    let Ok(f) = std::fs::File::open(file) else { return Vec::new() };
+    let mut reader = std::io::BufReader::with_capacity(256 * 1024, f);
+    let mut out: std::collections::VecDeque<Value> = std::collections::VecDeque::new();
+    let mut buf = Vec::new();
+    loop {
+        buf.clear();
+        // teto por linha: o resto de uma linha gigante é pulado
+        match std::io::Read::take(&mut reader, MAX_LINE as u64 + 1).read_until(b'\n', &mut buf) {
+            Ok(0) | Err(_) => break,
+            Ok(_) if buf.len() > MAX_LINE && buf.last() != Some(&b'\n') => {
+                // pula o resto em pedaços, sem guardar
+                loop {
+                    let mut skip = Vec::new();
+                    match std::io::Read::take(&mut reader, 64 * 1024).read_until(b'\n', &mut skip) {
+                        Ok(0) | Err(_) => break,
+                        Ok(_) if skip.last() == Some(&b'\n') => break,
+                        Ok(_) => {}
+                    }
+                }
+                continue;
+            }
+            Ok(_) => {}
+        }
+        let Ok(v) = serde_json::from_slice::<Value>(&buf) else { continue };
+        if let Some(m) = keep(v) {
+            out.push_back(m);
+            if out.len() > MAX_MESSAGES {
+                out.pop_front();
+            }
+        }
+    }
+    out.into()
+}
+
+fn keep(v: Value) -> Option<Value> {
+    std::iter::once(v)
         .filter(|v| matches!(v["type"].as_str(), Some("user" | "assistant")))
         .filter(|v| !v["isSidechain"].as_bool().unwrap_or(false))
         .filter(|v| !v["isMeta"].as_bool().unwrap_or(false))
@@ -23,7 +62,7 @@ pub fn load(file: &Path) -> Vec<Value> {
                 "parent_tool_use_id": Value::Null,
             })
         })
-        .collect()
+        .next()
 }
 
 #[cfg(test)]

@@ -119,7 +119,7 @@ pub fn validate(items: &[TodoItem]) -> Result<(), String> {
         _ => {}
     }
     for item in items {
-        if item.action == TodoAction::Reword && item.message.as_deref().map_or(true, |m| m.trim().is_empty()) {
+        if item.action == TodoAction::Reword && item.message.as_deref().is_none_or(|m| m.trim().is_empty()) {
             return Err(format!("o commit {} precisa de uma mensagem para o reword", short(&item.sha)));
         }
     }

@@ -95,7 +95,7 @@ impl AgentConn {
             while let Ok(Some(frame)) = read_frame::<FromAgent>(&mut stdout) {
                 match frame {
                     FromAgent::Res { id, result } => {
-                        if let Some(tx) = reader_pending.lock().unwrap().remove(&id) {
+                        if let Some(tx) = reader_pending.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(&id) {
                             let _ = tx.send(result);
                         }
                     }
@@ -103,7 +103,7 @@ impl AgentConn {
                     FromAgent::Hello { .. } => {}
                 }
             }
-            for (_, tx) in reader_pending.lock().unwrap().drain() {
+            for (_, tx) in reader_pending.lock().unwrap_or_else(std::sync::PoisonError::into_inner).drain() {
                 let _ = tx.send(Err(internal("o agente do WSL desconectou")));
             }
         });
@@ -112,16 +112,16 @@ impl AgentConn {
     }
 
     pub fn is_alive(&self) -> bool {
-        matches!(self.child.lock().unwrap().try_wait(), Ok(None))
+        matches!(self.child.lock().unwrap_or_else(std::sync::PoisonError::into_inner).try_wait(), Ok(None))
     }
 
     pub async fn call(&self, op: &str, args: Value) -> Result<Value, GitCommandError> {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = oneshot::channel();
-        self.pending.lock().unwrap().insert(id, tx);
+        self.pending.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(id, tx);
         let req = ToAgent::Req { id, op: op.into(), args, settings: settings_for(&self.distro) };
-        if let Err(e) = write_frame(&mut *self.stdin.lock().unwrap(), &req) {
-            self.pending.lock().unwrap().remove(&id);
+        if let Err(e) = write_frame(&mut *self.stdin.lock().unwrap_or_else(std::sync::PoisonError::into_inner), &req) {
+            self.pending.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(&id);
             return Err(internal(format!("o agente do WSL encerrou: {e}")));
         }
         rx.await.map_err(|_| internal("o agente do WSL desconectou"))?
@@ -135,7 +135,7 @@ impl AgentConn {
 
 impl Drop for AgentConn {
     fn drop(&mut self) {
-        let _ = self.child.lock().unwrap().kill();
+        let _ = self.child.lock().unwrap_or_else(std::sync::PoisonError::into_inner).kill();
     }
 }
 

@@ -1,0 +1,114 @@
+[package]
+name = "lazyaicode-fuzz"
+description = "Alvos de fuzzing dos parsers do LazyAICode (cargo fuzz run <alvo>)"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+serde_json = "1"
+lazyaicode-protocol = { path = "../crates/protocol" }
+lazyaicode-doc = { path = "../crates/doc" }
+lazyaicode-term = { path = "../crates/term" }
+lazyaicode-agent = { path = "../crates/agent" }
+lazyaicode-git = { path = "../crates/git" }
+lazyaicode-platform = { path = "../crates/platform" }
+
+[dev-dependencies]
+tempfile = "3"
+
+# cargo-fuzz quer o próprio workspace
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "transcript"
+path = "fuzz_targets/transcript.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "frame"
+path = "fuzz_targets/frame.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "patch"
+path = "fuzz_targets/patch.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "graph"
+path = "fuzz_targets/graph.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "term"
+path = "fuzz_targets/term.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "acp_translate"
+path = "fuzz_targets/acp_translate.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "session"
+path = "fuzz_targets/session.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "git_frame"
+path = "fuzz_targets/git_frame.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "frontmatter"
+path = "fuzz_targets/frontmatter.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "params"
+path = "fuzz_targets/params.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "wslpath"
+path = "fuzz_targets/wslpath.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "slash_rank"
+path = "fuzz_targets/slash_rank.rs"
+test = false
+doc = false
+bench = false
+

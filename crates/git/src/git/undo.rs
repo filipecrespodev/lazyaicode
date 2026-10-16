@@ -238,7 +238,7 @@ impl UndoHistory {
         };
         ensure_unchanged(repo, &entry.after)?;
         restore(repo, &entry.before)?;
-        let entry = self.undo.pop().unwrap();
+        let Some(entry) = self.undo.pop() else { return Err(GitCommandError::Internal("nada para desfazer".into())) };
         let label = entry.label.clone();
         self.redo.push(entry);
         Ok(label)
@@ -253,7 +253,7 @@ impl UndoHistory {
         }
         ensure_unchanged(repo, &entry.before)?;
         restore(repo, &entry.after)?;
-        let entry = self.redo.pop().unwrap();
+        let Some(entry) = self.redo.pop() else { return Err(GitCommandError::Internal("nada para refazer".into())) };
         let label = entry.label.clone();
         self.undo.push(entry);
         Ok(label)

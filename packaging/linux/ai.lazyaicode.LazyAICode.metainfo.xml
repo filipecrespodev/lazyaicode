@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>ai.lazyaicode.LazyAICode</id>
+  <name>LazyAICode</name>
+  <summary>Workspace for AI coding agents with isolated checkouts and git</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <launchable type="desktop-id">ai.lazyaicode.LazyAICode.desktop</launchable>
+  <url type="homepage">https://github.com/filipecrespodev/lazyaicode</url>
+  <description>
+    <p>Run Claude Code, Codex and Gemini CLI threads in parallel, each in its own git worktree, review what the agent changed and bring it into the project. Native Rust app (egui + wgpu), with a JSON control channel and an MCP server for scripts and agents.</p>
+  </description>
+  <content_rating type="oars-1.1"/>
+</component>

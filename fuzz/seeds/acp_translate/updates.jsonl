@@ -1,0 +1,5 @@
+{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"oi"}}
+{"sessionUpdate":"tool_call","toolCallId":"t1","title":"ls","kind":"execute","status":"pending","rawInput":{"command":"ls"}}
+{"sessionUpdate":"tool_call_update","toolCallId":"t1","status":"completed","content":[{"type":"content","content":{"type":"text","text":"a"}}]}
+{"sessionUpdate":"plan","entries":[{"content":"x","status":"pending"}]}
+{"sessionUpdate":"usage_update","used":10,"size":100}

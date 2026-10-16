@@ -6,6 +6,9 @@
 //! comando, e o `lazyaicode-agent` (o backend que roda dentro de uma distro
 //! WSL) usa este mesmo crate atrás do protocolo de `proto`.
 
+#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+
 pub mod activity;
 pub mod agent_server;
 pub mod editors;

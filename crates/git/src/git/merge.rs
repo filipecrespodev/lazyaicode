@@ -17,9 +17,9 @@ pub struct MergeResult {
 /// `Merge branch '<branch_name>' into '<current>'`.
 ///
 /// On conflicts, leaves the repository in `RepositoryState::Merge` (MERGE_HEAD
-/// + our custom MERGE_MSG on disk) for [`continue_merge`]/[`abort_merge`] to
-/// pick up later — the same conflict list/resolve machinery rebase conflicts
-/// already use, since those don't care what produced the conflicted index.
+/// and our custom MERGE_MSG on disk) for [`continue_merge`]/[`abort_merge`]
+/// to pick up later — the same conflict list/resolve machinery rebase
+/// conflicts already use, since those don't care what produced the index.
 pub fn merge_branch(repo: &git2::Repository, branch_name: &str) -> Result<MergeResult, GitCommandError> {
     let their_ref = repo.resolve_reference_from_short_name(branch_name)?;
     let head_name = repo.head()?.shorthand()?.to_string();

@@ -4,6 +4,7 @@ pub mod composer;
 pub mod dialogs;
 pub mod footer;
 pub mod git;
+pub mod git_extra;
 pub mod main;
 pub mod palette;
 pub mod review;

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/*", "apps/*"]
+members = ["crates/*", "apps/*", "xtask"]
 # lazyaicode-web só compila para wasm32 (cargo xtask wasm / trunk)
 default-members = ["crates/*", "apps/lazyaicode", "apps/lazyaicode-cli", "apps/lazyaicode-wsl-agent"]
 

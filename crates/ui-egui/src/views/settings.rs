@@ -489,7 +489,7 @@ fn providers(app: &mut LazyApp, ui: &mut egui::Ui) {
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(format!("{label}")).strong().size(tk.text_size + 1.0));
+                    ui.label(RichText::new(label.to_string()).strong().size(tk.text_size + 1.0));
                     ui.label(widgets::muted(&tk, *vendor));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if ui.small_button(icon::ARROWS_CLOCKWISE).clicked() {

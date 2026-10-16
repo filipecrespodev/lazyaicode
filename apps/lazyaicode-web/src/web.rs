@@ -42,7 +42,10 @@ impl Host for WebHost {
     fn pick_images(&self, _then: &str, params: Value) {
         let inbox = self.inbox.clone();
         wasm_bindgen_futures::spawn_local(async move {
-            let Some(files) = rfd::AsyncFileDialog::new().add_filter("Imagens", &["png", "jpg", "jpeg", "gif", "webp"]).pick_files().await else { return };
+            let Some(files) = rfd::AsyncFileDialog::new().add_filter("Imagens", &["png", "jpg", "jpeg", "gif", "webp"]).pick_files().await
+            else {
+                return;
+            };
             for f in files {
                 let bytes = f.read().await;
                 let name = f.file_name();
@@ -157,7 +160,9 @@ pub fn start() {
     eframe::WebLogger::init(log::LevelFilter::Warn).ok();
     wasm_bindgen_futures::spawn_local(async {
         let Some(doc) = window().and_then(|w| w.document()) else { return };
-        let Some(canvas) = doc.get_element_by_id("lazyaicode").and_then(|e| e.dyn_into::<web_sys::HtmlCanvasElement>().ok()) else { return };
+        let Some(canvas) = doc.get_element_by_id("lazyaicode").and_then(|e| e.dyn_into::<web_sys::HtmlCanvasElement>().ok()) else {
+            return;
+        };
         let token = token_from_hash().or_else(|| storage().and_then(|s| s.get_item(TOKEN_KEY).ok().flatten()));
         if let (Some(t), Some(s)) = (&token, storage()) {
             let _ = s.set_item(TOKEN_KEY, t);

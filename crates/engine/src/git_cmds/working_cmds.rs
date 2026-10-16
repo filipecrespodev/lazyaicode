@@ -56,6 +56,7 @@ pub async fn get_workdir_diff(repo_id: String, staged: bool, state: &AppState) -
     state.actor(&repo_id)?.workdir_diff(staged).await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn git_commit_changes(
     repo_id: String,
     summary: String,

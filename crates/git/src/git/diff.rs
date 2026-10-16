@@ -123,7 +123,7 @@ pub fn read_file_base64(repo: &git2::Repository, sha: Option<&str>, path: &str) 
 pub(crate) fn diff_to_file_list(diff: &git2::Diff) -> Result<Vec<FileDiff>, GitCommandError> {
     let mut files = Vec::new();
     for idx in 0..diff.deltas().len() {
-        let delta = diff.get_delta(idx).unwrap();
+        let Some(delta) = diff.get_delta(idx) else { continue };
         let old_file_path = delta.old_file().path().map(path_to_string);
         let new_file_path = delta.new_file().path().map(path_to_string);
         let is_binary = delta.flags().is_binary();

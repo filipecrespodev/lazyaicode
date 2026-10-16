@@ -133,7 +133,7 @@ pub fn build_groups(threads: &[ThreadView], projects: &[Project], o: &TreeOpts) 
         })
         .cloned()
         .collect();
-    visible.sort_by(|a, b| b.thread.updated_at.cmp(&a.thread.updated_at));
+    visible.sort_by_key(|t| std::cmp::Reverse(t.thread.updated_at));
 
     let mut groups = Vec::new();
     let favs: Vec<ThreadView> = visible.iter().filter(|t| t.thread.bookmarked).cloned().collect();

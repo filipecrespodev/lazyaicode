@@ -805,7 +805,8 @@ mod tests {
 
     #[test]
     fn configured_strategy_follows_git_precedence() {
-        let cases: &[(&[(&str, &str)], (PullStrategy, bool))] = &[
+        type Case<'a> = (&'a [(&'a str, &'a str)], (PullStrategy, bool));
+        let cases: &[Case] = &[
             (&[], (PullStrategy::Merge, false)),
             (&[("pull.ff", "only")], (PullStrategy::FfOnly, false)),
             (&[("pull.ff", "false")], (PullStrategy::Merge, true)),

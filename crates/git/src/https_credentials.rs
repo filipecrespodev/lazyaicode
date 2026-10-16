@@ -78,14 +78,14 @@ pub fn redact(url: &str) -> String {
 /// answered). `None` if the user cancelled or there is no UI (tests).
 pub fn get(url: &str, username: Option<&str>, retry: bool) -> Option<Credentials> {
     let host = host_key(url);
-    let round_before = LAST_CANCEL.lock().unwrap().0;
-    let _guard = PROMPT_LOCK.lock().unwrap();
-    if let Some(c) = CACHE.lock().unwrap().get_or_insert_default().get(&host) {
+    let round_before = LAST_CANCEL.lock().unwrap_or_else(std::sync::PoisonError::into_inner).0;
+    let _guard = PROMPT_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(c) = CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_or_insert_default().get(&host) {
         return Some(c.clone());
     }
     {
         // A prompt for this host was cancelled while we waited: honour it.
-        let last = LAST_CANCEL.lock().unwrap();
+        let last = LAST_CANCEL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         if last.0 != round_before && last.1.as_deref() == Some(host.as_str()) {
             return None;
         }
@@ -95,13 +95,13 @@ pub fn get(url: &str, username: Option<&str>, retry: bool) -> Option<Credentials
     }
     let (tx, rx) = channel();
     let request = CredentialsRequest { host: host.clone(), url: redact(url), username: username.map(String::from), retry };
-    *PENDING.lock().unwrap() = Some((request.clone(), tx));
+    *PENDING.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some((request.clone(), tx));
     // The UI also polls `pending_https_credentials` on mount, in case this
     // fires before it listens.
     crate::events::emit("https-credentials-request", request);
     let answer = rx.recv().ok().flatten();
     {
-        let mut last = LAST_CANCEL.lock().unwrap();
+        let mut last = LAST_CANCEL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         last.0 += 1;
         last.1 = answer.is_none().then(|| host.clone());
     }
@@ -112,29 +112,29 @@ pub fn get(url: &str, username: Option<&str>, retry: bool) -> Option<Credentials
 
 /// Keeps `credentials` for `url`'s host for the rest of the session.
 pub fn remember(url: &str, credentials: Credentials) {
-    CACHE.lock().unwrap().get_or_insert_default().insert(host_key(url), credentials);
+    CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_or_insert_default().insert(host_key(url), credentials);
 }
 
 /// Credentials already given for `url`'s host this session, without asking.
 pub fn cached(url: &str) -> Option<Credentials> {
-    CACHE.lock().unwrap().get_or_insert_default().get(&host_key(url)).cloned()
+    CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_or_insert_default().get(&host_key(url)).cloned()
 }
 
 /// Drops credentials the server rejected so the next use asks again.
 pub fn forget(url: &str) {
-    CACHE.lock().unwrap().get_or_insert_default().remove(&host_key(url));
+    CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_or_insert_default().remove(&host_key(url));
 }
 
 /// `None` (either field) cancels the prompt.
 pub fn submit_https_credentials(username: Option<String>, password: Option<String>) {
-    if let Some((_, tx)) = PENDING.lock().unwrap().take() {
+    if let Some((_, tx)) = PENDING.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take() {
         let _ = tx.send(username.zip(password).map(|(username, password)| Credentials { username, password }));
     }
 }
 
 /// Request currently waiting for an answer, if any.
 pub fn pending_https_credentials() -> Option<CredentialsRequest> {
-    PENDING.lock().unwrap().as_ref().map(|(request, _)| request.clone())
+    PENDING.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref().map(|(request, _)| request.clone())
 }
 
 #[cfg(test)]

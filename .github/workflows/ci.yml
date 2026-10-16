@@ -4,8 +4,13 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  test:
+  # fmt, camadas, traduções, clippy, testes e wasm — o mesmo `cargo xtask ci` de antes de cada commit
+  ci:
     strategy:
       fail-fast: false
       matrix:
@@ -13,27 +18,66 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
       - uses: swatinem/rust-cache@v2
-        with: { workspaces: src-tauri }
       - if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
-      - run: npm ci
-      - run: npm test
-      - if: runner.os == 'Linux'
-        run: npm run check
-      # o build do frontend gera o dist/ que o tauri embute ao compilar
-      - run: npm run build
-      - run: cargo test
-        working-directory: src-tauri
+          sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev libvulkan-dev mesa-vulkan-drivers
+      - run: git config --global user.email ci@lazyaicode && git config --global user.name ci
+      - run: cargo xtask ci
 
-  # O binário Linux rodando dentro do WSL (como o usuário roda via WSLg).
-  # Runners hospedados só têm WSL1, mas o que importa aqui é o mesmo: kernel
-  # "Microsoft", /mnt/c, wslpath, e o app subindo com o WebKitGTK.
+  fuzz-smoke:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: fuzz }
+      - run: cargo test --manifest-path fuzz/Cargo.toml --release
+        env: { FUZZ_SMOKE_ITERS: "20000" }
+
+  fuzz:
+    # libFuzzer de verdade, um minuto por alvo, com AddressSanitizer
+    runs-on: ubuntu-22.04
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo install --locked cargo-fuzz
+      - run: |
+          for t in $(cargo +nightly fuzz list); do
+            mkdir -p fuzz/corpus/$t && cp -n fuzz/seeds/$t/* fuzz/corpus/$t/ 2>/dev/null || true
+            cargo +nightly fuzz run $t fuzz/corpus/$t -- -max_total_time=60 -rss_limit_mb=2048 -max_len=65536
+          done
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: fuzz-artifacts, path: fuzz/artifacts }
+
+  book:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+      - run: curl -fsSL https://github.com/rust-lang/mdBook/releases/download/v0.5.4/mdbook-v0.5.4-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C /usr/local/bin
+      - run: cargo xtask commands && git diff --exit-code book/src/reference/
+      - run: mdbook build book
+
+  web:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: swatinem/rust-cache@v2
+      - run: curl -fsSL https://github.com/trunk-rs/trunk/releases/download/v0.21.14/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C /usr/local/bin
+      - run: cargo xtask web
+
+  # O binário Linux rodando dentro do WSL, como no Windows de quem usa WSLg.
   wsl:
     runs-on: windows-latest
     defaults:
@@ -41,37 +85,15 @@ jobs:
         shell: wsl-bash {0}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
-      - name: frontend (no Windows; o dist/ é copiado para o WSL)
-        shell: pwsh
-        run: |
-          npm ci
-          npm run build
       - uses: Vampire/setup-wsl@v5
         with:
           distribution: Ubuntu-24.04
-          additional-packages: build-essential curl git pkg-config libssl-dev libwebkit2gtk-4.1-dev librsvg2-dev libayatana-appindicator3-dev xvfb xauth dbus-x11
-      - name: rust
-        run: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-      - name: testes do backend dentro do WSL
+          additional-packages: build-essential curl git pkg-config libxkbcommon-dev libwayland-dev libx11-dev libgl1-mesa-dev
+      - run: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+      - name: testes dentro do WSL
         run: |
           . "$HOME/.cargo/env"
-          # compila no ext4 do WSL: no /mnt/c (DrvFs) fica muito mais lento
-          rm -rf ~/app && cp -r . ~/app && cd ~/app/src-tauri
+          rm -rf ~/app && cp -r . ~/app && cd ~/app
           git config --global user.email ci@lazyaicode && git config --global user.name ci
           uname -a && cat /proc/sys/kernel/osrelease
-          EXPECT_WSL=1 cargo test
-      - name: o app abre no WSL (xvfb) e fica de pé
-        run: |
-          . "$HOME/.cargo/env"
-          cd ~/app/src-tauri
-          cargo build
-          export LAZYAICODE_DATA_DIR=$(mktemp -d)
-          set +e
-          xvfb-run -a timeout 20 dbus-launch ./target/debug/lazyaicode > app.log 2>&1
-          code=$?
-          set -e
-          cat app.log
-          # 124 = derrubado pelo timeout, ou seja, ficou aberto os 20s
-          [ "$code" = 124 ] || { echo "o app saiu com $code"; exit 1; }
+          EXPECT_WSL=1 cargo test -p lazyaicode-platform -p lazyaicode-git -p lazyaicode-engine -p lazyaicode-wsl-agent

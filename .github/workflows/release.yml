@@ -2,65 +2,138 @@ name: release
 on:
   push:
     tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  # O backend git sem interface que o app do Windows roda dentro do WSL
-  # (repositórios em \\wsl.localhost\...). glibc do runner mais antigo para
-  # rodar em mais distros; libgit2, OpenSSL e libssh2 vão estáticos (vendored).
-  agent:
+  linux:
+    # 22.04: glibc mais antiga = os pacotes rodam em mais distros (e no Ubuntu do WSL)
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
-        with: { workspaces: src-tauri }
-      - run: cargo build --release --no-default-features --bin lazyaicode-agent
-        working-directory: src-tauri
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev libvulkan-dev libfuse2 rpm flatpak flatpak-builder
+          cargo install --locked cargo-deb cargo-generate-rpm
+          curl -fsSL -o /usr/local/bin/appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x /usr/local/bin/appimagetool
+      - run: cargo xtask dist tarball && cargo xtask dist deb && cargo xtask dist rpm && cargo xtask dist appimage
+      - run: |
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08 org.freedesktop.Sdk.Extension.rust-stable//24.08
+          cargo xtask dist flatpak
+      # o agente WSL vai no MSI
+      - run: cargo build --release -p lazyaicode-wsl-agent
+      - uses: actions/upload-artifact@v4
+        with: { name: wsl-agent, path: target/release/lazyaicode-agent }
       - uses: actions/upload-artifact@v4
         with:
-          name: lazyaicode-agent
-          path: src-tauri/target/release/lazyaicode-agent
-          if-no-files-found: error
-  build:
-    needs: agent
-    permissions: { contents: write }
+          name: linux
+          path: |
+            packaging/out/*.tar.gz
+            packaging/out/*.deb
+            packaging/out/*.rpm
+            packaging/out/*.AppImage
+            packaging/out/*.flatpak
+
+  macos:
     strategy:
-      fail-fast: false
       matrix:
         include:
-          - { os: macos-latest, args: "--target aarch64-apple-darwin" }
-          - { os: macos-latest, args: "--target x86_64-apple-darwin" }
-          # 22.04: glibc mais antiga = AppImage/deb rodam em mais distros (e no Ubuntu do WSL)
-          - { os: ubuntu-22.04, args: "" }
-          - { os: windows-latest, args: "" }
-    runs-on: ${{ matrix.os }}
+          - { runner: macos-latest, arch: aarch64 }
+          - { runner: macos-13, arch: x86_64 }
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
       - uses: swatinem/rust-cache@v2
-        with: { workspaces: src-tauri }
-      - if: matrix.os == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
-      - run: npm ci
-      - if: matrix.os == 'windows-latest'
-        uses: actions/download-artifact@v4
-        with:
-          name: lazyaicode-agent
-          path: src-tauri/resources
-      - uses: tauri-apps/tauri-action@v0
+      - name: certificado de assinatura
+        if: env.APPLE_CERTIFICATE != ''
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          echo "$APPLE_CERTIFICATE" | base64 --decode > cert.p12
+          security create-keychain -p ci build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p ci build.keychain
+          security import cert.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci build.keychain
+      - run: cargo xtask dist dmg && cargo xtask dist tarball
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      - uses: actions/upload-artifact@v4
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: LazyAICode ${{ github.ref_name }}
-          releaseBody: |
-            Instaladores abaixo. Linux e WSL: `curl -fsSL https://raw.githubusercontent.com/filipecrespodev/lazyaicode/main/scripts/install.sh | sh`
-            O app se atualiza sozinho ao abrir.
-          args: ${{ matrix.args }}
+          name: macos-${{ matrix.arch }}
+          path: |
+            packaging/out/*.dmg
+            packaging/out/*.zip
+            packaging/out/*.tar.gz
+
+  windows:
+    needs: linux
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+      - uses: actions/download-artifact@v4
+        with: { name: wsl-agent, path: packaging/windows/resources }
+      - run: cargo install --locked cargo-wix
+      - run: cargo xtask dist msi
+      - run: cargo xtask dist tarball
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            packaging/out/*.msi
+            packaging/out/*.zip
+
+  freebsd:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          prepare: pkg install -y rust git pkgconf libxkbcommon wayland
+          run: cargo run -p xtask -- dist tarball
+      - uses: actions/upload-artifact@v4
+        with: { name: freebsd, path: packaging/out/*.tar.gz }
+
+  web:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: swatinem/rust-cache@v2
+      - run: curl -fsSL https://github.com/trunk-rs/trunk/releases/download/v0.21.14/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C /usr/local/bin
+      - run: cargo xtask web && tar -czf lazyaicode-web-${GITHUB_REF_NAME}.tar.gz -C apps/lazyaicode-web dist
+      - uses: actions/upload-artifact@v4
+        with: { name: web, path: "lazyaicode-web-*.tar.gz" }
+
+  publish:
+    needs: [linux, macos, windows, freebsd, web]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - run: cd out && sha256sum * > SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: LazyAICode ${{ github.ref_name }}
+          files: out/*
+          body: |
+            Pacotes abaixo (MSI, DMG, AppImage, Flatpak, deb, rpm, tarballs e a versão web).
+            Linux e WSL: `curl -fsSL https://raw.githubusercontent.com/filipecrespodev/lazyaicode/main/scripts/install.sh | sh`
+            Somas em `SHA256SUMS`.

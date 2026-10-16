@@ -50,6 +50,12 @@ pub fn claude_dir(ws: &Workspace) -> PathBuf {
     ws.claude_dir.as_deref().filter(|s| !s.is_empty()).map(PathBuf::from).unwrap_or_else(lazyaicode_agent::claude::default_claude_dir)
 }
 
+/// Ajustes do processo antes de abrir qualquer coisa (PATH do WSL, backend
+/// gráfico). Chamado pelos apps no início.
+pub fn init_platform() {
+    lazyaicode_platform::prepare_env();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -92,10 +98,4 @@ mod tests {
         assert!(!owns_session_cwd(&w, Path::new("/p/trevo/legado/x")));
         assert!(!owns_session_cwd(&w, Path::new("/outro")));
     }
-}
-
-/// Ajustes do processo antes de abrir qualquer coisa (PATH do WSL, backend
-/// gráfico). Chamado pelos apps no início.
-pub fn init_platform() {
-    lazyaicode_platform::prepare_env();
 }

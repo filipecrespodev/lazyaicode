@@ -108,8 +108,13 @@ pub fn read_frame<T: serde::de::DeserializeOwned>(r: &mut impl Read) -> io::Resu
     if len > MAX_FRAME {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "frame too large"));
     }
-    let mut body = vec![0u8; len];
-    r.read_exact(&mut body)?;
+    // Cresce com o que chega, não com o que o cabeçalho promete: um
+    // cabeçalho hostil de 512 MiB não aloca nada antes de mandar os dados.
+    let mut body = Vec::with_capacity(len.min(1 << 20));
+    r.take(len as u64).read_to_end(&mut body)?;
+    if body.len() < len {
+        return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "frame cut short"));
+    }
     serde_json::from_slice(&body).map(Some).map_err(io::Error::other)
 }
 
@@ -120,6 +125,14 @@ mod tests {
     #[derive(Serialize, Deserialize)]
     enum Cmd {
         Ping(String, Reply<usize>),
+    }
+
+    #[test]
+    fn a_huge_header_without_data_fails_without_allocating_it() {
+        let mut wire = ((MAX_FRAME - 1) as u32).to_be_bytes().to_vec();
+        wire.extend(b"{}");
+        let r: io::Result<Option<serde_json::Value>> = read_frame(&mut wire.as_slice());
+        assert_eq!(r.err().map(|e| e.kind()), Some(io::ErrorKind::UnexpectedEof));
     }
 
     #[test]

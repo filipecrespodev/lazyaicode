@@ -82,7 +82,9 @@ pub fn ensure_agent_installed(distro: &str) -> Result<(), GitCommandError> {
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| fail("instalar", &e))?;
-    child.stdin.take().expect("piped").write_all(&bytes).map_err(|e| fail("instalar", &e))?;
+    let Some(mut stdin) = child.stdin.take() else { return Err(fail("instalar", &"stdin fechado")) };
+    stdin.write_all(&bytes).map_err(|e| fail("instalar", &e))?;
+    drop(stdin);
     let out = child.wait_with_output().map_err(|e| fail("instalar", &e))?;
     if out.status.success() {
         Ok(())
@@ -143,7 +145,7 @@ pub fn list_distros() -> Vec<String> {
 /// `wsl.exe -l -q` prints UTF-16LE, one distro per line; Docker Desktop's
 /// internal distros are left out.
 pub fn parse_distro_list(out: &[u8]) -> Vec<String> {
-    let units: Vec<u16> = out.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+    let units: Vec<u16> = out.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
     String::from_utf16_lossy(&units)
         .lines()
         .map(|l| l.trim().trim_start_matches('\u{feff}').to_string())
@@ -154,7 +156,7 @@ pub fn parse_distro_list(out: &[u8]) -> Vec<String> {
 impl AppState {
     /// The (lazily started) agent of `distro`; restarted if it died.
     pub async fn agent(&self, distro: &str) -> Result<Arc<AgentConn>, GitCommandError> {
-        if let Some(conn) = self.agents.lock().unwrap().get(distro).filter(|c| c.is_alive()) {
+        if let Some(conn) = self.agents.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(distro).filter(|c| c.is_alive()) {
             return Ok(conn.clone());
         }
         let name = distro.to_string();
@@ -165,7 +167,7 @@ impl AppState {
             AgentConn::connect(agent_command(&name)?, name)
         })
         .await??;
-        self.agents.lock().unwrap().insert(distro.to_string(), conn.clone());
+        self.agents.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(distro.to_string(), conn.clone());
         Ok(conn)
     }
 
@@ -187,7 +189,10 @@ impl AppState {
         summary.path = unc(&summary.path);
         summary.common_dir = unc(&summary.common_dir);
         let actor = RepoActor::Remote(RemoteRepo { conn: agent.clone(), repo_id: repo_id.clone() });
-        self.repos.lock().unwrap().insert(repo_id, RepoHandle { actor, path: summary.path.clone(), agent: Some(agent) });
+        self.repos
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(repo_id, RepoHandle { actor, path: summary.path.clone(), agent: Some(agent) });
         Ok(summary)
     }
 
@@ -207,7 +212,7 @@ impl AppState {
     }
 
     fn live_agents(&self) -> Vec<Arc<AgentConn>> {
-        self.agents.lock().unwrap().values().filter(|c| c.is_alive()).cloned().collect()
+        self.agents.lock().unwrap_or_else(std::sync::PoisonError::into_inner).values().filter(|c| c.is_alive()).cloned().collect()
     }
 
     /// Prompt answers/queries are global: tell every live agent, since the

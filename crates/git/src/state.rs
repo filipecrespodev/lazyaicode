@@ -25,7 +25,7 @@ impl AppState {
     pub fn repo_path(&self, repo_id: &str) -> Result<String, GitCommandError> {
         self.repos
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .get(repo_id)
             .map(|handle| handle.path.clone())
             .ok_or_else(|| GitCommandError::RepoNotFound { path: repo_id.to_string() })
@@ -34,7 +34,7 @@ impl AppState {
     pub fn actor(&self, repo_id: &str) -> Result<RepoActor, GitCommandError> {
         self.repos
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .get(repo_id)
             .map(|handle| handle.actor.clone())
             .ok_or_else(|| GitCommandError::RepoNotFound { path: repo_id.to_string() })
@@ -44,7 +44,7 @@ impl AppState {
     pub fn agent_of(&self, repo_id: &str) -> Result<Option<Arc<AgentConn>>, GitCommandError> {
         self.repos
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .get(repo_id)
             .map(|handle| handle.agent.clone())
             .ok_or_else(|| GitCommandError::RepoNotFound { path: repo_id.to_string() })
@@ -57,7 +57,7 @@ impl AppState {
         let path = repo::root_path(path, &repository);
         let summary = repo::summary(repo_id.clone(), path.clone(), &repository);
         let actor = RepoActor::spawn(repository, repo_id.clone());
-        self.repos.lock().unwrap().insert(repo_id, RepoHandle { actor, path, agent: None });
+        self.repos.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(repo_id, RepoHandle { actor, path, agent: None });
         Ok(summary)
     }
 }

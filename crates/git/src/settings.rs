@@ -17,7 +17,7 @@ pub fn set_provider(provider: impl Fn(&str) -> Option<Value> + Send + Sync + 'st
 }
 
 pub fn get(key: &str) -> Option<Value> {
-    if let Some(v) = PUSHED.lock().unwrap().as_ref().and_then(|m| m.get(key)) {
+    if let Some(v) = PUSHED.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref().and_then(|m| m.get(key)) {
         return Some(v.clone());
     }
     PROVIDER.get().and_then(|p| p(key))
@@ -31,5 +31,5 @@ pub fn snapshot() -> HashMap<String, Value> {
 }
 
 pub fn apply(values: HashMap<String, Value>) {
-    *PUSHED.lock().unwrap() = Some(values);
+    *PUSHED.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(values);
 }

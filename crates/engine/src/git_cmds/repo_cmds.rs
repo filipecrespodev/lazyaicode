@@ -18,7 +18,7 @@ pub async fn get_repo_status(repo_id: String, state: &AppState) -> Result<RepoSt
 }
 
 pub async fn close_repository(repo_id: String, state: &AppState) -> Result<(), GitCommandError> {
-    let removed = state.repos.lock().unwrap().remove(&repo_id);
+    let removed = state.repos.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(&repo_id);
     if let Some(agent) = removed.and_then(|h| h.agent) {
         agent.call("close_repository", serde_json::json!({ "repoId": repo_id })).await?;
     }

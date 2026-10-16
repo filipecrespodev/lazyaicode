@@ -296,7 +296,11 @@ fn path_of(app: &LazyApp) -> Result<String, String> {
     Ok(p)
 }
 
-pub fn register_ui_commands(add: &mut dyn FnMut(&str, &str, &'static str, Option<&str>, crate::commands::RunBox)) {
+/// Quem registra um comando de tela: `(id, rótulo, grupo, atalho, run)`.
+pub type AddUiCmd<'a> = dyn FnMut(&str, &str, &'static str, Option<&str>, crate::commands::RunBox) + 'a;
+
+pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
+    crate::views::git_extra::register(add);
     let mut a = |id: &str, label: &str, sc: Option<&str>, f: crate::commands::RunBox| add(id, label, "git", sc, f);
     a(
         "ui.git.refresh",
@@ -782,6 +786,25 @@ fn toolbar(app: &mut LazyApp, ui: &mut egui::Ui, path: &str) {
                 }
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let more = widgets::icon_button(ui, &tk, icon::DOTS_THREE, &t("gitPanel.more"));
+                egui::Popup::menu(&more).show(|ui| {
+                    for (id, ic, label) in [
+                        ("ui.git.search", icon::MAGNIFYING_GLASS, "gitGraph.search"),
+                        ("ui.git.open-pr", icon::GIT_PULL_REQUEST, "gitIntegrations.newPr"),
+                        ("ui.git.remotes", icon::CLOUD, "gitRemote.remotes"),
+                        ("ui.git.worktrees", icon::TREE_STRUCTURE, "gitWorktrees.title"),
+                        ("ui.git.submodules", icon::CUBE, "gitSubmodules.title"),
+                        ("ui.git.lfs-pull", icon::DOWNLOAD_SIMPLE, "gitLfs.pull"),
+                        ("ui.git.redo", icon::ARROW_CLOCKWISE, "gitUndo.redo"),
+                    ] {
+                        if ui.button(format!("{ic}  {}", t(label))).clicked() {
+                            if let Err(e) = crate::commands::run_ui(app, id, &Value::Null) {
+                                app.toast_err(&e);
+                            }
+                            ui.close();
+                        }
+                    }
+                });
                 if widgets::icon_button(ui, &tk, icon::ARROWS_CLOCKWISE, &t("gitPanel.refresh")).clicked() {
                     refresh(app, path, true);
                 }
@@ -878,9 +901,16 @@ pub fn history(app: &mut LazyApp, ui: &mut egui::Ui, path: &str) {
         .frame(egui::Frame::new().fill(tk.p.bg))
         .show(ui, |ui| {
             widgets::hline(ui, &tk);
-            match selected.as_deref() {
-                Some(WORKING) | None => working(app, ui, path),
-                Some(sha) => commit_details(app, ui, path, sha),
+            let op = crate::views::git_extra::in_progress(app, path);
+            match (op, selected.as_deref()) {
+                (Some(op), Some(WORKING) | None) => {
+                    egui::ScrollArea::vertical()
+                        .id_salt(("conflicts", path))
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| crate::views::git_extra::conflicts(app, ui, path, &op));
+                }
+                (_, Some(WORKING) | None) => working(app, ui, path),
+                (_, Some(sha)) => commit_details(app, ui, path, sha),
             }
         });
     egui::CentralPanel::default().frame(egui::Frame::new().fill(tk.p.bg)).show(ui, |ui| commit_list(app, ui, path));
@@ -980,6 +1010,10 @@ fn branch_menu(app: &mut LazyApp, ui: &mut egui::Ui, path: &str, name: &str, is_
     }
     if !is_head && ui.button(format!("{}  {}", icon::GIT_PULL_REQUEST, tf("gitBranches.rebaseOntoName", &[("name", &name)]))).clicked() {
         let _ = crate::commands::run_ui(app, "ui.git.rebase-onto", &json!({ "name": name }));
+        ui.close();
+    }
+    if !is_head && ui.button(format!("{}  {}", icon::GIT_DIFF, t("gitBranches.compareWithCurrent"))).clicked() {
+        let _ = crate::commands::run_ui(app, "ui.git.compare", &json!({ "b": name }));
         ui.close();
     }
     if ui.button(format!("{}  {}", icon::COPY, t("gitBranches.copyName"))).clicked() {
@@ -1155,6 +1189,7 @@ fn commit_list(app: &mut LazyApp, ui: &mut egui::Ui, path: &str) {
                     ("ui.git.commit.revert", "gitGraph.revert"),
                     ("ui.git.commit.reset-mixed", "gitGraph.resetMixed"),
                     ("ui.git.commit.reset-hard", "gitGraph.resetHard"),
+                    ("ui.git.interactive-rebase", "gitInteractiveRebase.fromHere"),
                 ] {
                     if ui.button(t(label)).clicked() {
                         menu_action = Some((id, sha.clone()));
@@ -1329,6 +1364,14 @@ fn working(app: &mut LazyApp, ui: &mut egui::Ui, path: &str) {
                             op(app, path, "stage", m, json!({ "path": fpath }), None);
                         }
                         resp.context_menu(|ui| {
+                            if ui.button(format!("{}  {}", icon::USER_LIST, t("gitHistory.blame"))).clicked() {
+                                let _ = crate::commands::run_ui(app, "ui.git.blame", &json!({ "path": fpath }));
+                                ui.close();
+                            }
+                            if ui.button(format!("{}  {}", icon::CLOCK_COUNTER_CLOCKWISE, t("gitHistory.fileHistory"))).clicked() {
+                                let _ = crate::commands::run_ui(app, "ui.git.file-history", &json!({ "path": fpath }));
+                                ui.close();
+                            }
                             if ui.button(t("gitWorking.ignore")).clicked() {
                                 op(app, path, "ignore", "git.working.ignore", json!({ "pattern": fpath, "local": false }), None);
                                 ui.close();
@@ -1359,13 +1402,8 @@ fn working(app: &mut LazyApp, ui: &mut egui::Ui, path: &str) {
                 ui.label(widgets::muted(&tk, t("diffFile.binary")));
             }
             Some(f) => {
-                ui.label(RichText::new(&fpath).monospace().strong());
-                crate::views::review::patch_lines(
-                    ui,
-                    &tk,
-                    &parse_patch(f["patch"].as_str().unwrap_or("")),
-                    ("wdiff", path, &fpath, is_staged),
-                );
+                let patch = f["patch"].as_str().unwrap_or("").to_string();
+                crate::views::git_extra::staging_diff(app, ui, path, &fpath, is_staged, &patch);
             }
             None => {
                 ui.label(widgets::faint(&tk, t("gitWorking.noDiff")));
@@ -1422,10 +1460,19 @@ fn commit_details(app: &mut LazyApp, ui: &mut egui::Ui, path: &str, sha: &str) {
                     let fp = f["path"].as_str().unwrap_or("").to_string();
                     let (letter, color) = status_letter(&f["status"]);
                     let on = sel_file.as_deref() == Some(fp.as_str());
-                    if ui
-                        .selectable_label(on, RichText::new(format!("{letter}  {fp}")).color(if on { tk.p.text } else { color(&tk) }))
-                        .clicked()
-                    {
+                    let r =
+                        ui.selectable_label(on, RichText::new(format!("{letter}  {fp}")).color(if on { tk.p.text } else { color(&tk) }));
+                    r.context_menu(|ui| {
+                        if ui.button(t("gitHistory.blame")).clicked() {
+                            let _ = crate::commands::run_ui(app, "ui.git.blame", &json!({ "path": fp }));
+                            ui.close();
+                        }
+                        if ui.button(t("gitHistory.fileHistory")).clicked() {
+                            let _ = crate::commands::run_ui(app, "ui.git.file-history", &json!({ "path": fp }));
+                            ui.close();
+                        }
+                    });
+                    if r.clicked() {
                         repo_mut(app, path).diff_file = Some(fp);
                     }
                 }

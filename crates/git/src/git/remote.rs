@@ -220,7 +220,7 @@ pub fn push(
     let rejected_cb = rejected.clone();
     callbacks.push_update_reference(move |refname, status| {
         if let Some(message) = status {
-            *rejected_cb.lock().unwrap() = Some(format!("{refname}: {message}"));
+            *rejected_cb.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(format!("{refname}: {message}"));
         }
         Ok(())
     });
@@ -242,7 +242,7 @@ pub fn push(
         return Err(e.into());
     }
 
-    if let Some(message) = rejected.lock().unwrap().take() {
+    if let Some(message) = rejected.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take() {
         let is_non_fast_forward = ["non-fast-forward", "fetch first", "stale info"].iter().any(|needle| message.contains(needle));
         if is_non_fast_forward {
             return Err(GitCommandError::PushRejectedNonFastForward { message });
@@ -303,7 +303,7 @@ fn push_refspec(repo: &git2::Repository, remote_name: &str, refspec: &str) -> Re
     let rejected_cb = rejected.clone();
     callbacks.push_update_reference(move |refname, status| {
         if let Some(message) = status {
-            *rejected_cb.lock().unwrap() = Some(format!("{refname}: {message}"));
+            *rejected_cb.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(format!("{refname}: {message}"));
         }
         Ok(())
     });
@@ -312,7 +312,7 @@ fn push_refspec(repo: &git2::Repository, remote_name: &str, refspec: &str) -> Re
     opts.remote_callbacks(callbacks);
     remote.push(&[refspec], Some(&mut opts))?;
 
-    if let Some(message) = rejected.lock().unwrap().take() {
+    if let Some(message) = rejected.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take() {
         return Err(GitCommandError::Internal(format!("push rejeitado pelo servidor: {message}")));
     }
     Ok(())
@@ -592,7 +592,7 @@ impl Auth {
                 }
                 if let Some(key) = &picker.locked {
                     log(format!("ssh: a chave {} precisa da senha; operações em segundo plano não pedem", key.display()));
-                    *locked_cb.lock().unwrap() = Some(Locked::SshKey(key.clone()));
+                    *locked_cb.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Locked::SshKey(key.clone()));
                 }
             }
 
@@ -626,7 +626,10 @@ impl Auth {
                 if https.locked {
                     log(format!("https: {host} precisa de credenciais; operações em segundo plano não as pedem"));
                     // A locked SSH key (same connection offering both) explains it better.
-                    locked_cb.lock().unwrap().get_or_insert(Locked::Https(https_credentials::redact(url)));
+                    locked_cb
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .get_or_insert(Locked::Https(https_credentials::redact(url)));
                 }
             }
 
@@ -646,7 +649,7 @@ impl Auth {
     }
 
     fn error(locked: &Mutex<Option<Locked>>, e: git2::Error) -> GitCommandError {
-        match locked.lock().unwrap().take() {
+        match locked.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take() {
             Some(Locked::SshKey(key)) => GitCommandError::SshPassphraseRequired { key: key.display().to_string() },
             Some(Locked::Https(url)) => GitCommandError::HttpsCredentialsRequired { url },
             None => e.into(),
@@ -1089,7 +1092,7 @@ mod tests {
                     }
                     line.clear();
                 }
-                seen_srv.lock().unwrap().push(auth);
+                seen_srv.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(auth);
                 let _ = stream.write_all(
                     b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"t\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
                 );
@@ -1111,7 +1114,7 @@ mod tests {
 
         let err = fetch(&repo, "origin", AuthMode::Background, |_, _, _| {}).unwrap_err();
         assert!(matches!(&err, GitCommandError::HttpsCredentialsRequired { url: u } if *u == url), "{err:?}");
-        let sent: Vec<_> = seen.lock().unwrap().iter().flatten().cloned().collect();
+        let sent: Vec<_> = seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner).iter().flatten().cloned().collect();
         assert_eq!(sent, [format!("Basic {}", base64("helper-user:helper-pw")), format!("Basic {}", base64("typed-user:typed-pw")),]);
         // Rejected session credentials are forgotten, so the next user-started op asks.
         assert_eq!(https_credentials::cached(&url), None);
@@ -1142,7 +1145,7 @@ mod tests {
         // No UI in tests: the prompt answers like a cancel.
         let err = fetch(&repo, "origin", AuthMode::Interactive, |_, _, _| {}).unwrap_err();
         assert!(matches!(err, GitCommandError::Libgit2 { .. }), "{err:?}");
-        assert!(seen.lock().unwrap().iter().all(Option::is_none));
+        assert!(seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner).iter().all(Option::is_none));
     }
 
     #[test]

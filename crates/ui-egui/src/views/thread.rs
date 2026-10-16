@@ -27,7 +27,7 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
     if let Some(url) = app.eph.preview_image.clone() {
         let mut open = true;
         egui::Window::new(t("thread.attachedImage")).open(&mut open).collapsible(false).resizable(true).show(ui.ctx(), |ui| {
-            if let Some(bytes) = crate::views::transcript::data_url_bytes(&url) {
+            if let Some(bytes) = crate::views::transcript::data_url_bytes(&url).filter(|b| crate::views::transcript::image_ok(b)) {
                 ui.add(egui::Image::from_bytes(format!("bytes://preview-{}.img", url.len()), bytes).max_size(Vec2::new(900.0, 700.0)));
             }
         });

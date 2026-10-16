@@ -102,7 +102,7 @@ fn build() -> Vec<UiCmd> {
     // ---------- automação ----------
     r.add("ui.inspect", "Inspect the screen", "ui", None, |app, _| Ok(crate::control::inspect(app)))
         .doc("Estado da tela: aba, thread aberta, painéis e diálogos, workspace ativo, contagens.");
-    r.add("ui.screenshot", "Screenshot", "ui", None, |app, p| crate::control::screenshot(app, p))
+    r.add("ui.screenshot", "Screenshot", "ui", None, crate::control::screenshot)
         .params(vec![ParamInfo::opt("cpu", ParamType::Bool).doc("renderizar com o compositor de referência em CPU")])
         .doc("PNG da janela em base64.");
     r.add("ui.run", "Run a screen command", "ui", None, |app, p| {
@@ -1152,9 +1152,9 @@ pub fn parse_shortcut(s: &str) -> Option<egui::KeyboardShortcut> {
     let mut key = None;
     for part in s.split('+') {
         match part.trim() {
-            "Ctrl" | "Cmd" => mods = mods | egui::Modifiers::COMMAND,
-            "Shift" => mods = mods | egui::Modifiers::SHIFT,
-            "Alt" => mods = mods | egui::Modifiers::ALT,
+            "Ctrl" | "Cmd" => mods |= egui::Modifiers::COMMAND,
+            "Shift" => mods |= egui::Modifiers::SHIFT,
+            "Alt" => mods |= egui::Modifiers::ALT,
             "Comma" => key = Some(egui::Key::Comma),
             other => key = egui::Key::from_name(other),
         }

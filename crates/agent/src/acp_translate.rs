@@ -170,21 +170,18 @@ impl Translator {
                 if touches_input {
                     out.push(self.tool_use(&id));
                 }
-                match u.get("status").and_then(Value::as_str) {
-                    Some(st @ ("completed" | "failed")) => {
-                        let mut text = match u.get("rawOutput") {
-                            Some(Value::String(s)) => s.clone(),
-                            Some(v) if !v.is_null() => {
-                                text_of(v).trim().to_string().chars().take(20000).collect::<String>().pipe_or(|| v.to_string())
-                            }
-                            _ => String::new(),
-                        };
-                        if text.is_empty() {
-                            text = text_of(u.get("content").unwrap_or(&Value::Null));
+                if let Some(st @ ("completed" | "failed")) = u.get("status").and_then(Value::as_str) {
+                    let mut text = match u.get("rawOutput") {
+                        Some(Value::String(s)) => s.clone(),
+                        Some(v) if !v.is_null() => {
+                            text_of(v).trim().to_string().chars().take(20000).collect::<String>().pipe_or(|| v.to_string())
                         }
-                        out.push(Self::tool_result(&id, text, st == "failed"));
+                        _ => String::new(),
+                    };
+                    if text.is_empty() {
+                        text = text_of(u.get("content").unwrap_or(&Value::Null));
                     }
-                    _ => {}
+                    out.push(Self::tool_result(&id, text, st == "failed"));
                 }
             }
             "plan" => {

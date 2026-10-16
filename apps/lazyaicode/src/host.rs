@@ -101,11 +101,7 @@ impl Host for DesktopHost {
             "C:\\Windows\\Fonts\\simsun.ttc",
             "/mnt/c/Windows/Fonts/msyh.ttc",
         ];
-        CANDIDATES
-            .iter()
-            .find_map(|p| std::fs::read(p).ok().map(|b| ("cjk".to_string(), b, 0)))
-            .into_iter()
-            .collect()
+        CANDIDATES.iter().find_map(|p| std::fs::read(p).ok().map(|b| ("cjk".to_string(), b, 0))).into_iter().collect()
     }
 
     fn tz_offset_ms(&self) -> i64 {

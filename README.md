@@ -1,166 +1,146 @@
-<p align="center"><img src="docs/brand/logo.png" width="128" alt="LazyAICode" /></p>
+<p align="center"><img src="assets/brand/logo.png" width="112" alt="LazyAICode" /></p>
 
-# LazyAICode
+<h1 align="center">LazyAICode</h1>
 
-Workspace desktop para agentes Claude Code: threads em paralelo, cada uma num
-checkout isolado, com revisão de diff e integração ao projeto — a experiência
-do [Delta](https://delta.dev/docs/getting-started) com o motor do trevocode.
+<p align="center">
+  <b>Um workspace para agentes de código, em Rust puro.</b><br>
+  Threads do Claude Code, Codex e Gemini CLI em paralelo, cada uma no seu checkout git isolado,<br>
+  com revisão do que o agente mudou, um cliente git completo e um terminal — numa janela nativa desenhada na GPU.
+</p>
 
-- **Backend em Rust** (Tauri 2): processos do agente, git, PTY e estado.
-- **UI em Svelte 5** numa webview nativa (binário pequeno, sem Node em runtime).
-- **Workspaces com conta própria**: um workspace é uma pasta
-  que agrupa repositórios e usa um diretório de configuração do Claude Code
-  (`~/.claude`, `~/.claude-trevo`, …). Cada um é uma aba na barra de título.
-- **Sem chave própria**: o agente é o `claude` instalado na máquina, rodando
-  com a conta do workspace. Login, assinatura, `ANTHROPIC_API_KEY`, plugins,
-  skills, MCP e hooks são os mesmos do terminal.
-- **Três provedores**: Claude Code (Anthropic), Codex (OpenAI) e Gemini CLI
-  (Google), escolhidos no seletor de modelo do rodapé. Codex e Gemini falam
-  ACP (Agent Client Protocol) e usam o login deles (`codex login` / conta
-  Google) ou `OPENAI_API_KEY` / `GEMINI_API_KEY`. Sem o binário instalado, o
-  app roda o agente via `npx` com versão fixa (precisa de Node.js).
-- **Janela sem a barra do sistema**: abas, busca, configurações e
-  minimizar/maximizar/fechar ficam na barra de título do app.
-- **Git dentro da thread**: cada thread tem as abas **Conversa**, **Mudanças**
-  (staging por arquivo ou hunk, commit, revisão do que o agente mudou),
-  **Histórico** (grafo de commits, branches, tags, stash, reflog, merge/rebase
-  com resolução de conflitos, cherry-pick, PRs do GitHub e MRs do GitLab) e
-  **Terminal**, todas no checkout da thread (`Ctrl+1…4`). Clicar no nome de um
-  repositório na sidebar abre as mesmas abas sobre o checkout principal dele.
-- **IA de commit sem chave**: a mensagem de commit e a divisão do staging em
-  commits usam o Claude Code com a conta do workspace.
+<p align="center">
+  <img alt="100% Rust" src="https://img.shields.io/badge/100%25-Rust-b7410e?style=flat-square&logo=rust">
+  <img alt="macOS · Windows · Linux · FreeBSD · Web" src="https://img.shields.io/badge/macOS%20%C2%B7%20Windows%20%C2%B7%20Linux%20%C2%B7%20FreeBSD%20%C2%B7%20Web-native-2f7bf5?style=flat-square">
+  <img alt="Licença: MIT" src="https://img.shields.io/badge/licen%C3%A7a-MIT-3a3a3a?style=flat-square">
+  <img alt="500+ comandos" src="https://img.shields.io/badge/comandos-500%2B-3fb47a?style=flat-square">
+</p>
 
-### Organização do código
+<p align="center">
+  <a href="#o-que-faz">O que faz</a> ·
+  <a href="#feito-para-agentes">Para agentes</a> ·
+  <a href="#por-dentro">Por dentro</a> ·
+  <a href="#instalar">Instalar</a> ·
+  <a href="#compilar">Compilar</a> ·
+  <a href="book/src/README.md">Documentação</a>
+</p>
 
-| | Agentes | Git |
-|---|---|---|
-| UI | Svelte 5 (`src/lib`, `src/App.svelte`) | React 19 + Tailwind 4 (`src/git`) |
-| Backend | `src-tauri/src/*.rs` (git via CLI) | `src-tauri/src/git_client` (libgit2) |
+<p align="center">
+  <img src="book/src/images/thread.png" alt="Uma thread do LazyAICode: a conversa com o agente, as ferramentas que ele usou e o rodapé com modelo, modo e linhas mudadas" width="100%">
+</p>
 
-O resto é um só para o app inteiro: workspaces, configurações (`Ctrl+,`, com
-as abas Git e Integrações), terminal, tema e paleta (`Ctrl+K`).
+## O que faz
 
-Os painéis Git são ilhas React dentro da casca Svelte: `GitPanel.svelte` chama
-`mountRepoPanel` (`src/git/mount.tsx`) no elemento da aba, carregando o bundle
-do git só na primeira vez. Um repositório é aberto no backend uma vez por
-caminho, mesmo que a thread e a tela do repositório o mostrem. O preflight do
-Tailwind vale só dentro dos painéis (`src/git/preflight.css`), e o tema de
-Configurações → Aparência vale para tudo. A interface Git está sendo migrada
-para Svelte painel a painel; o React sai quando a última ilha for migrada.
+- **Threads em paralelo.** Cada conversa com um agente é uma thread: direto
+  na pasta do projeto, ou **isolada** num `git worktree` numa branch própria.
+  Nada chega ao projeto até você revisar e integrar.
+- **Sem chave própria.** O agente é o `claude` (Claude Code) instalado na
+  máquina, com a sua conta — login, assinatura, plugins, skills, MCP e hooks
+  são os do terminal. Codex (OpenAI) e Gemini CLI (Google) falam ACP e usam o
+  login deles.
+- **Workspaces com conta própria.** Um workspace é uma pasta que agrupa
+  repositórios e usa um diretório do Claude Code (`~/.claude`,
+  `~/.claude-trabalho`…). Cada um é uma aba na barra de título.
+- **Revisão do agente.** Os arquivos mudados desde o início da thread, o
+  último turno ou o último commit, com o diff e a marca de "revisado" (que se
+  desfaz sozinha quando o diff muda). Integrar aplica como mudança local, faz
+  merge da branch ou pede um PR ao agente.
+- **Git dentro da thread.** Grafo de commits, staging por arquivo, hunk ou
+  linha, commit com a mensagem escrita pela IA (com a conta do workspace),
+  branches, tags, stash, push/pull/fetch, resolução de conflitos (nosso,
+  deles, manual ou pela IA), rebase interativo, cherry-pick, revert, reset,
+  blame, histórico de arquivo, comparação de branches, busca, reflog,
+  estatísticas, worktrees, remotos, submódulos, LFS e PRs/MRs do GitHub e
+  GitLab — no checkout da thread.
+- **Terminal** no checkout da thread, com cores, rolagem e copiar/colar.
+- **Paleta com tudo** (`Ctrl+K`): threads, pastas e os mais de 500 comandos,
+  com formulário automático para os parâmetros.
+- **13 temas**, claro/escuro do sistema, quatro idiomas (en, pt, es, zh).
 
-## Instalação
+<p align="center">
+  <img src="book/src/images/git-history.png" alt="A aba Histórico: grafo de commits com merge e tag, branches à esquerda, mudanças locais e o campo de commit" width="100%">
+</p>
 
-Baixe o instalador do [último release](https://github.com/filipecrespodev/lazyaicode/releases/latest):
+## Feito para agentes
 
-| Sistema | Arquivo |
-|---|---|
-| Windows | `LazyAICode_x.y.z_x64-setup.exe` (ou `.msi`) |
-| macOS (Apple Silicon / Intel) | `LazyAICode_x.y.z_aarch64.dmg` / `LazyAICode_x.y.z_x64.dmg` |
-| Linux | `.AppImage` ou `.deb` |
-| Linux e WSL | `curl -fsSL https://raw.githubusercontent.com/filipecrespodev/lazyaicode/main/scripts/install.sh \| sh` |
+Cada botão, atalho e menu roda um comando de um único registro. A interface,
+a CLI, o canal de controle JSON e o servidor MCP chamam os mesmos comandos —
+o que você clica, um script ou um agente de IA também faz.
 
-O app verifica atualizações ao abrir e se atualiza sozinho (releases assinados).
-Pré-requisito em todos: `git` e o [Claude Code](https://docs.claude.com/en/docs/claude-code) instalado e com login.
+```sh
+# a CLI roda o motor sem janela, com o mesmo estado do app
+lazyaicode-cli commands --group thread
+lazyaicode-cli run thread.create workspaceId=… projectId=… isolated=true
+lazyaicode-cli batch turno.json            # [{command, params}, …]
 
-### WSL
+# um agente dirigindo o LazyAICode por MCP
+claude mcp add lazyaicode -- lazyaicode-cli mcp
 
-Use o build **Linux** dentro do WSL2, exibido no Windows pelo WSLg (Windows 11,
-ou Windows 10 21H2+):
-
-- `install.sh` baixa o AppImage e cria o comando `lazyaicode`, que roda com
-  `--appimage-extract-and-run` (o WSL normalmente não tem FUSE).
-- O Claude Code e o `git` precisam estar instalados **dentro** do WSL, e os
-  repositórios de preferência no disco do Linux (`~/...`): no `/mnt/c` o git
-  fica muito mais lento.
-- No WSL o app desliga o renderizador DMABUF/compositing do WebKitGTK (causa
-  conhecida de janela em branco no WSLg) e abre arquivos e pastas no Windows
-  (`wslview` ou Explorer via `wslpath`).
-- No build Windows nativo, o cliente git abre repositórios que estão dentro do
-  WSL sem lê-los pelo `\\wsl.localhost` (9P, lento): o app sobe o
-  `lazyaicode-agent` dentro da distro e conversa com ele por um pipe, então
-  git, hooks, chaves SSH, credenciais e git-lfs rodam nativamente no Linux.
-  Use **Do WSL** em *Novo workspace* (ou qualquer pasta
-  `\\wsl.localhost\<distro>\...`): a lista de repositórios do workspace, a
-  visão Git e o terminal (que abre um shell na distro) passam pelo WSL. O
-  instalador leva o agente e o copia para `~/.lazyaicode/` na distro no
-  primeiro uso. As threads do Claude Code, porém, ainda rodam o `claude` do
-  Windows sobre o 9P; para elas, o build Linux no WSL continua sendo o melhor.
-- Dev: `cargo build --no-default-features --bin lazyaicode-agent` (em
-  `src-tauri`) compila o agente; `LAZYAICODE_AGENT_BIN=<binário>` faz o app
-  rodá-lo direto em vez de passar pelo `wsl.exe`.
-
-## Desenvolvimento
-
-Pré-requisitos: Rust, Node 20+, Claude Code (`claude`) com login feito, e as
-dependências de sistema do Tauri (no Linux: `webkit2gtk-4.1`, `libsoup-3.0`).
-
-```bash
-npm install
-npm run tauri dev               # desenvolvimento
-npm run tauri build             # gera .deb e .AppImage em src-tauri/target/release/bundle
+# o app aberto, por um canal autenticado só em loopback
+lazyaicode --control 127.0.0.1:7878
+lazyaicode-cli --connect 127.0.0.1:7878 run ui.inspect
 ```
 
-## Como funciona
+O MCP traz `thread_send_and_wait`: manda a mensagem e devolve o texto final,
+as ferramentas usadas, o custo e o pedido de permissão pendente. Veja
+[Automação](book/src/automation/overview.md) e a
+[referência de comandos](book/src/reference/commands.md).
 
-| Conceito | Implementação |
+## Por dentro
+
+- **Motor primeiro.** Um modelo de documento só com dados e um motor de
+  comandos com mais de 500 comandos registrados; a UI egui é uma camada fina
+  por cima, que nem liga o motor — fala com ele por comandos. As camadas são
+  conferidas no build (`cargo xtask layers`).
+- **GPU e CPU.** A janela é egui sobre **wgpu** (Metal, Vulkan, DX12, GL e
+  WebGPU), com winit. Um compositor em **CPU** (tiles de 256² em paralelo com
+  rayon, PNG via tiny-skia) desenha a mesma saída sem GPU; os dois são
+  testados um contra o outro (diferença média de 0,006 por canal).
+- **No navegador.** A UI compila para WebAssembly e fala com um
+  `lazyaicode-cli serve` por WebSocket; há um `Dockerfile` para hospedar.
+- **Endurecido.** Nada de `unsafe` nem de `unwrap` em produção; entrada de
+  fora com teto (linhas dos agentes, sessões, quadros, imagens); 12 alvos de
+  fuzzing; um "panic hunt" que chama todos os comandos com parâmetros hostis.
+  Veja [Segurança](book/src/security/overview.md).
+
+## Instalar
+
+| Sistema | Pacote |
 |---|---|
-| Workspace | Pasta + conta Claude + repositórios ignorados. Os repositórios são os filhos imediatos da pasta (e ela própria, se for repo). |
-| Projeto | Um repositório do workspace. |
-| Sessões existentes | Sessões do Claude Code da conta do workspace que rodaram dentro da pasta viram threads (sincroniza ao abrir, ao focar a janela e ao trocar de aba). |
-| Thread | Um processo `claude -p --input-format stream-json --output-format stream-json --permission-prompt-tool stdio`, vivo entre turnos; recriado com `--resume <session>` quando morre. |
-| Workspace isolado | `git worktree` numa branch `lazy/<id>` criada a partir de `origin/HEAD`, guardado em `~/.local/share/lazyaicode/worktrees/`. O checkout principal não muda. Arquivar remove o checkout e mantém a branch; desarquivar o recria. |
-| Preparação | `.agents/prepare` (ou `.delta/prepare`) roda na criação; caminhos em `.agents/linked` viram symlinks para o checkout principal (ex.: `.env`). |
-| Permissões | `control_request can_use_tool` vira um card Permitir/Negar na conversa. |
-| Mudanças | Diff contra uma árvore temporária da pasta (inclui arquivos novos, respeita `.gitignore`, não toca no índice). Bases: desde a origem, desde o último commit, último turno. "Visto" por arquivo se desfaz quando o diff do arquivo muda. |
-| Integrar | Aplicar no projeto (`git apply --3way`), merge da branch (exige projeto limpo) ou pedir ao agente commit + push + PR. |
-| Histórico | Lido do armazenamento nativo do Claude Code (`<claudeDir>/projects/<cwd>/<session>.jsonl`). |
-| Terminal | PTY (`portable-pty`) no checkout da thread, xterm.js na UI. |
-| Codex / Gemini | Cliente ACP em `acp.rs` (`codex-acp`, `gemini --experimental-acp`); os eventos são traduzidos para o formato do stream-json do Claude (`acp_translate.rs`), então conversa, permissões, menu `/`, contexto e notificações funcionam iguais. A transcrição dessas threads fica em `~/.local/share/lazyaicode/transcripts/`. Sobrescreva o comando com `LAZYAICODE_CODEX_ACP` / `LAZYAICODE_GEMINI`. |
+| Windows | `.msi` (app, CLI e agente WSL) |
+| macOS | `.dmg` assinado e notarizado (arm64 e x86_64) |
+| Linux | `.AppImage`, `.deb`, `.rpm`, `.flatpak`, `.tar.gz` |
+| FreeBSD | `.tar.gz` |
+| Web | `docker build -t lazyaicode-web .` |
 
-Estado do app: `~/.local/share/lazyaicode/state.json` (sobrescreva com
-`LAZYAICODE_DATA_DIR`). Binário do Claude: PATH, locais de instalação comuns ou
-`LAZYAICODE_CLAUDE_BIN`.
+Linux e WSL2, em uma linha:
 
-## Atalhos
-
-| Ação | Atalho |
-|---|---|
-| Paleta de comandos | Ctrl K |
-| Nova thread | Ctrl N |
-| Mudanças | Alt Shift D |
-| Terminal | Ctrl ` |
-| Favoritar | Ctrl D |
-| Thread anterior / próxima | Alt ↑ / ↓ |
-| Interromper o agente | Esc |
-| Configurações | Ctrl , |
-| Workspace anterior / próximo | Ctrl Tab / Ctrl Shift Tab |
-| Workspace 1–9 | Alt 1…9 |
-
-## Publicando um release
-
-1. Suba a versão em `package.json`, `src-tauri/Cargo.toml` e `src-tauri/tauri.conf.json`.
-2. `git tag vX.Y.Z && git push origin vX.Y.Z`.
-
-O workflow `release` compila macOS (arm64 e x64), Linux (AppImage e deb) e
-Windows (NSIS e MSI), assina os pacotes de atualização com
-`TAURI_SIGNING_PRIVATE_KEY` (secret do repositório) e publica o `latest.json`
-que o updater consulta. A chave privada fica fora do repositório
-(`~/.tauri/lazyaicode.key`); sem ela não é possível publicar atualizações.
-
-O workflow `ci` roda os testes em Linux, macOS e Windows e, num runner Windows,
-compila e testa dentro do WSL, inclusive abrindo o app (xvfb).
-
-## Testes
-
-```bash
-cd src-tauri && cargo test                          # backend
-cd src-tauri && cargo test -- --ignored real_claude # ponta a ponta com o claude real (usa Haiku)
-cd src-tauri && cargo test -- --ignored real_acp    # cliente ACP contra um agente real (adaptador ACP do Claude)
-npm test                                            # redutor da transcrição e parser de diff
-npm run check                                       # svelte-check
+```sh
+curl -fsSL https://raw.githubusercontent.com/filipecrespodev/lazyaicode/main/scripts/install.sh | sh
 ```
 
-## Licenças de terceiros
+Precisa do [Claude Code](https://docs.claude.com/claude-code) (ou do Codex /
+Gemini CLI) e do `git`. Detalhes em [Instalação](book/src/getting-started/installation.md).
 
-Partes da visão Git (`src/git`, `src-tauri/src/git_client`) derivam de código
-sob licença MIT, © 2026 João Vitor Melo — ver [`src/git/LICENSE`](src/git/LICENSE).
+## Compilar
+
+```sh
+cargo run --release -p lazyaicode      # o app
+cargo xtask ci                         # fmt, camadas, i18n, clippy, testes, wasm
+cargo xtask web                        # a versão web
+cargo xtask dist appimage              # tarball, deb, rpm, appimage, flatpak, dmg, msi, docker
+mdbook serve book                      # a documentação
+```
+
+| | |
+|---|---|
+| `crates/` | `platform` `protocol` `i18n` `term` `doc` `git` `agent` `engine` `automation` `render-cpu` `ui-egui` `testkit` |
+| `apps/` | `lazyaicode` (desktop) · `lazyaicode-cli` · `lazyaicode-web` (wasm) · `lazyaicode-wsl-agent` |
+| `book/` | a documentação (mdBook) |
+| `fuzz/` | alvos de fuzzing |
+| `packaging/` | AppImage, Flatpak, DMG, MSI, FreeBSD |
+
+Para contribuir, leia o [`AGENTS.md`](AGENTS.md) — vale para pessoas e para agentes.
+
+## Licença
+
+MIT. Veja [`LICENSE`](LICENSE).

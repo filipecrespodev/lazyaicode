@@ -4,6 +4,7 @@
 //! como a própria chave (visível, nunca um pânico).
 
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing))]
 
 use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};

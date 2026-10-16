@@ -64,7 +64,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        ai_cmds::ai_compose_commits(p.repo_id, p.model, p.custom_instructions, p.answers, &e.git(), &e)
+                        ai_cmds::ai_compose_commits(p.repo_id, p.model, p.custom_instructions, p.answers, e.git(), &e)
                             .await
                             .map_err(crate::EngineError::from)?,
                     )
@@ -106,7 +106,7 @@ pub fn register(r: &mut Registry) {
                             p.author_name,
                             p.author_email,
                             p.no_verify,
-                            &e.git(),
+                            e.git(),
                         )
                         .await
                         .map_err(crate::EngineError::from)?,
@@ -190,7 +190,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(branch_cmds::list_branches(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(branch_cmds::list_branches(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -210,7 +210,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(branch_cmds::list_tags(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(branch_cmds::list_tags(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -238,7 +238,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        branch_cmds::create_branch(p.repo_id, p.name, p.start_point, p.checkout, &e.git())
+                        branch_cmds::create_branch(p.repo_id, p.name, p.start_point, p.checkout, e.git())
                             .await
                             .map_err(crate::EngineError::from)?,
                     )
@@ -261,7 +261,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(branch_cmds::checkout_branch(p.repo_id, p.name, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(branch_cmds::checkout_branch(p.repo_id, p.name, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -289,7 +289,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        branch_cmds::checkout_at(p.repo_id, p.name, p.target_sha, p.remote_name, &e.git())
+                        branch_cmds::checkout_at(p.repo_id, p.name, p.target_sha, p.remote_name, e.git())
                             .await
                             .map_err(crate::EngineError::from)?,
                     )
@@ -312,7 +312,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(branch_cmds::checkout_commit_detached(p.repo_id, p.sha, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(branch_cmds::checkout_commit_detached(p.repo_id, p.sha, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -337,7 +337,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(branch_cmds::cherry_pick(p.repo_id, p.sha, p.create_commit, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(branch_cmds::cherry_pick(p.repo_id, p.sha, p.create_commit, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -363,7 +363,7 @@ pub fn register(r: &mut Registry) {
                 .destructive()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(branch_cmds::reset_to_commit(p.repo_id, p.sha, p.hard, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(branch_cmds::reset_to_commit(p.repo_id, p.sha, p.hard, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -389,7 +389,7 @@ pub fn register(r: &mut Registry) {
                 .destructive()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(branch_cmds::reset_to_ref(p.repo_id, p.ref_name, p.hard, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(branch_cmds::reset_to_ref(p.repo_id, p.ref_name, p.hard, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -410,7 +410,7 @@ pub fn register(r: &mut Registry) {
                 .destructive()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(branch_cmds::sync_branch_to_remote(p.repo_id, p.target_sha, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(branch_cmds::sync_branch_to_remote(p.repo_id, p.target_sha, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -431,7 +431,7 @@ pub fn register(r: &mut Registry) {
                 .destructive()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(branch_cmds::delete_local_branch(p.repo_id, p.name, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(branch_cmds::delete_local_branch(p.repo_id, p.name, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -458,7 +458,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        branch_cmds::delete_remote_branch(p.repo_id, p.remote_name, p.name, &e.git())
+                        branch_cmds::delete_remote_branch(p.repo_id, p.remote_name, p.name, e.git())
                             .await
                             .map_err(crate::EngineError::from)?,
                     )
@@ -488,7 +488,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        branch_cmds::delete_branch_both(p.repo_id, p.remote_names, p.name, &e.git())
+                        branch_cmds::delete_branch_both(p.repo_id, p.remote_names, p.name, e.git())
                             .await
                             .map_err(crate::EngineError::from)?,
                     )
@@ -511,7 +511,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(branch_cmds::merge_branch(p.repo_id, p.name, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(branch_cmds::merge_branch(p.repo_id, p.name, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -536,7 +536,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(branch_cmds::create_tag(p.repo_id, p.name, p.sha, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(branch_cmds::create_tag(p.repo_id, p.name, p.sha, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -557,7 +557,7 @@ pub fn register(r: &mut Registry) {
                 .destructive()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(branch_cmds::delete_local_tag(p.repo_id, p.name, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(branch_cmds::delete_local_tag(p.repo_id, p.name, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -582,7 +582,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(branch_cmds::push_tag(p.repo_id, p.remote_name, p.name, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(branch_cmds::push_tag(p.repo_id, p.remote_name, p.name, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -609,7 +609,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        branch_cmds::delete_remote_tag(p.repo_id, p.remote_name, p.name, &e.git())
+                        branch_cmds::delete_remote_tag(p.repo_id, p.remote_name, p.name, e.git())
                             .await
                             .map_err(crate::EngineError::from)?,
                     )
@@ -633,7 +633,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(branch_cmds::list_remote_tags(p.repo_id, p.remote_name, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(branch_cmds::list_remote_tags(p.repo_id, p.remote_name, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -696,7 +696,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(config_cmds::repo_file_path(p.repo_id, p.rel_path, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(config_cmds::repo_file_path(p.repo_id, p.rel_path, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -737,7 +737,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(diff_cmds::get_commit_diff(p.repo_id, p.sha, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(diff_cmds::get_commit_diff(p.repo_id, p.sha, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -763,7 +763,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(diff_cmds::get_range_diff(p.repo_id, p.from_sha, p.to_sha, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(diff_cmds::get_range_diff(p.repo_id, p.from_sha, p.to_sha, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -789,7 +789,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(diff_cmds::get_file_content(p.repo_id, p.sha, p.path, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(diff_cmds::get_file_content(p.repo_id, p.sha, p.path, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1117,7 +1117,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(history_cmds::revert_commit(p.repo_id, p.sha, p.mainline, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(history_cmds::revert_commit(p.repo_id, p.sha, p.mainline, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1138,7 +1138,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(history_cmds::get_file_history(p.repo_id, p.query, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(history_cmds::get_file_history(p.repo_id, p.query, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1167,7 +1167,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        history_cmds::get_commit_file_diff(p.repo_id, p.sha, p.path, p.old_path, &e.git())
+                        history_cmds::get_commit_file_diff(p.repo_id, p.sha, p.path, p.old_path, e.git())
                             .await
                             .map_err(crate::EngineError::from)?,
                     )
@@ -1201,7 +1201,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        history_cmds::get_blame(p.repo_id, p.path, p.sha, p.start_line, p.max_lines, &e.git())
+                        history_cmds::get_blame(p.repo_id, p.path, p.sha, p.start_line, p.max_lines, e.git())
                             .await
                             .map_err(crate::EngineError::from)?,
                     )
@@ -1233,7 +1233,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        history_cmds::get_branch_compare(p.repo_id, p.a, p.b, p.limit, &e.git()).await.map_err(crate::EngineError::from)?,
+                        history_cmds::get_branch_compare(p.repo_id, p.a, p.b, p.limit, e.git()).await.map_err(crate::EngineError::from)?,
                     )
                 }),
         );
@@ -1260,7 +1260,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(history_cmds::get_tree_diff(p.repo_id, p.from_sha, p.to_sha, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(history_cmds::get_tree_diff(p.repo_id, p.from_sha, p.to_sha, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1282,9 +1282,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        interactive_rebase_cmds::get_rebase_plan(p.repo_id, p.from_sha, &e.git())
-                            .await
-                            .map_err(crate::EngineError::from)?,
+                        interactive_rebase_cmds::get_rebase_plan(p.repo_id, p.from_sha, e.git()).await.map_err(crate::EngineError::from)?,
                     )
                 }),
         );
@@ -1311,7 +1309,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        interactive_rebase_cmds::start_interactive_rebase(p.repo_id, p.upstream, p.items, &e.git())
+                        interactive_rebase_cmds::start_interactive_rebase(p.repo_id, p.upstream, p.items, e.git())
                             .await
                             .map_err(crate::EngineError::from)?,
                     )
@@ -1335,7 +1333,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(log_cmds::get_commit_log(p.repo_id, p.query, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(log_cmds::get_commit_log(p.repo_id, p.query, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1355,7 +1353,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(log_cmds::get_head_commit(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(log_cmds::get_head_commit(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1371,7 +1369,7 @@ pub fn register(r: &mut Registry) {
         }
         r.add(Spec::new("git.log.signature", "Get commit signature", "git").params(vec![ParamInfo::req("repoId", ParamType::String), ParamInfo::req("sha", ParamType::String)]).doc("Whether a commit is signed (and how), for the commit details panel. Asked for the selected commit only, never per graph row.").read_only().run(|e, v| async move {
             let p: P = parse(v)?;
-            json_of(log_cmds::get_commit_signature(p.repo_id, p.sha, &e.git()).await.map_err(crate::EngineError::from)?)
+            json_of(log_cmds::get_commit_signature(p.repo_id, p.sha, e.git()).await.map_err(crate::EngineError::from)?)
         }));
     }
     {
@@ -1390,7 +1388,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(log_cmds::get_repo_stats(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(log_cmds::get_repo_stats(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1411,7 +1409,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(log_cmds::get_reflog(p.repo_id, p.ref_name, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(log_cmds::get_reflog(p.repo_id, p.ref_name, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1437,7 +1435,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(log_cmds::search_commits(p.repo_id, p.query, p.mode, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(log_cmds::search_commits(p.repo_id, p.query, p.mode, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1452,7 +1450,7 @@ pub fn register(r: &mut Registry) {
         }
         r.add(Spec::new("git.repo.fingerprint", "Get repo fingerprint", "git").params(vec![ParamInfo::req("repoId", ParamType::String)]).doc("Token that changes when refs/HEAD/stash move (see `git::fingerprint`). Read straight from disk, not through the repo actor: it must answer even while the actor is busy.").read_only().run(|e, v| async move {
             let p: P = parse(v)?;
-            json_of(log_cmds::get_repo_fingerprint(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+            json_of(log_cmds::get_repo_fingerprint(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
         }));
     }
     {
@@ -1471,7 +1469,7 @@ pub fn register(r: &mut Registry) {
                 .doc("`strategy`: overrides the repo's pull config for this one pull.")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(pull_cmds::pull_branch(p.repo_id, p.strategy, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(pull_cmds::pull_branch(p.repo_id, p.strategy, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1491,7 +1489,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(pull_cmds::get_upstream_status(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(pull_cmds::get_upstream_status(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1511,7 +1509,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(rebase_cmds::start_rebase(p.repo_id, p.onto_branch, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(rebase_cmds::start_rebase(p.repo_id, p.onto_branch, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1531,7 +1529,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(rebase_cmds::get_rebase_status(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(rebase_cmds::get_rebase_status(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1557,7 +1555,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        rebase_cmds::resolve_rebase_conflict(p.repo_id, p.path, p.resolution, &e.git())
+                        rebase_cmds::resolve_rebase_conflict(p.repo_id, p.path, p.resolution, e.git())
                             .await
                             .map_err(crate::EngineError::from)?,
                     )
@@ -1579,7 +1577,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(rebase_cmds::continue_rebase(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(rebase_cmds::continue_rebase(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1599,7 +1597,7 @@ pub fn register(r: &mut Registry) {
                 .destructive()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(rebase_cmds::abort_rebase(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(rebase_cmds::abort_rebase(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1616,7 +1614,7 @@ pub fn register(r: &mut Registry) {
         }
         r.add(Spec::new("git.remote.fetch", "Fetch remote", "git").params(vec![ParamInfo::req("repoId", ParamType::String), ParamInfo::opt("remoteName", ParamType::String), ParamInfo::opt("background", ParamType::Bool)]).doc("`remote_name`: `None` fetches every remote. `background`: a fetch the user didn't ask for (on open, periodic), which must not prompt for an SSH key passphrase or HTTPS credentials.").run(|e, v| async move {
             let p: P = parse(v)?;
-            json_of(remote_cmds::fetch_remote(p.repo_id, p.remote_name, p.background, &e.git()).await.map_err(crate::EngineError::from)?)
+            json_of(remote_cmds::fetch_remote(p.repo_id, p.remote_name, p.background, e.git()).await.map_err(crate::EngineError::from)?)
         }));
     }
     {
@@ -1636,7 +1634,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(remote_cmds::get_remote_url(p.repo_id, p.remote_name, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(remote_cmds::get_remote_url(p.repo_id, p.remote_name, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1654,7 +1652,7 @@ pub fn register(r: &mut Registry) {
         }
         r.add(Spec::new("git.remote.push", "Push branch", "git").params(vec![ParamInfo::req("repoId", ParamType::String), ParamInfo::opt("remoteName", ParamType::String), ParamInfo::req("branch", ParamType::String), ParamInfo::req("force", ParamType::Bool)]).doc("`remote_name`: `None` pushes where `git push` would (upstream, else `origin`, else the only remote), failing with `RemoteRequired` when that's ambiguous so the UI can ask.").run(|e, v| async move {
             let p: P = parse(v)?;
-            json_of(remote_cmds::push_branch(p.repo_id, p.remote_name, p.branch, p.force, &e.git()).await.map_err(crate::EngineError::from)?)
+            json_of(remote_cmds::push_branch(p.repo_id, p.remote_name, p.branch, p.force, e.git()).await.map_err(crate::EngineError::from)?)
         }));
     }
     {
@@ -1673,7 +1671,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(remote_cmds::list_remotes(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(remote_cmds::list_remotes(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1698,7 +1696,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(remote_cmds::add_remote(p.repo_id, p.name, p.url, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(remote_cmds::add_remote(p.repo_id, p.name, p.url, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1719,7 +1717,7 @@ pub fn register(r: &mut Registry) {
                 .destructive()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(remote_cmds::remove_remote(p.repo_id, p.name, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(remote_cmds::remove_remote(p.repo_id, p.name, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1744,7 +1742,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(remote_cmds::rename_remote(p.repo_id, p.name, p.new_name, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(remote_cmds::rename_remote(p.repo_id, p.name, p.new_name, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1769,7 +1767,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(remote_cmds::set_remote_url(p.repo_id, p.name, p.url, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(remote_cmds::set_remote_url(p.repo_id, p.name, p.url, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1784,7 +1782,7 @@ pub fn register(r: &mut Registry) {
         }
         r.add(Spec::new("git.repo.open", "Open repository", "git").params(vec![ParamInfo::req("path", ParamType::String)]).doc("A `\\\\wsl.localhost\\<distro>\\...` path opens through that distro's agent (see `git_client::wsl`); anything else in this process.").run(|e, v| async move {
             let p: P = parse(v)?;
-            json_of(repo_cmds::open_repository(p.path, &e.git()).await.map_err(crate::EngineError::from)?)
+            json_of(repo_cmds::open_repository(p.path, e.git()).await.map_err(crate::EngineError::from)?)
         }));
     }
     {
@@ -1803,7 +1801,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(repo_cmds::get_repo_status(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(repo_cmds::get_repo_status(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1820,7 +1818,7 @@ pub fn register(r: &mut Registry) {
             Spec::new("git.repo.close", "Close repository", "git").params(vec![ParamInfo::req("repoId", ParamType::String)]).doc("").run(
                 |e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(repo_cmds::close_repository(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(repo_cmds::close_repository(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 },
             ),
         );
@@ -1841,7 +1839,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(repo_tools_cmds::list_worktrees(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(repo_tools_cmds::list_worktrees(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1861,7 +1859,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(repo_tools_cmds::add_worktree(p.repo_id, p.args, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(repo_tools_cmds::add_worktree(p.repo_id, p.args, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1887,7 +1885,7 @@ pub fn register(r: &mut Registry) {
                 .destructive()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(repo_tools_cmds::remove_worktree(p.repo_id, p.name, p.force, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(repo_tools_cmds::remove_worktree(p.repo_id, p.name, p.force, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1906,7 +1904,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(repo_tools_cmds::prune_worktrees(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(repo_tools_cmds::prune_worktrees(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1926,7 +1924,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(repo_tools_cmds::list_submodules(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(repo_tools_cmds::list_submodules(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1941,7 +1939,7 @@ pub fn register(r: &mut Registry) {
         }
         r.add(Spec::new("git.submodule.count", "Get submodule count", "git").params(vec![ParamInfo::req("repoId", ParamType::String)]).doc("Decides whether the repo menu offers Submodules at all; cheap enough to ask on every repo open, unlike `list_submodules`.").read_only().run(|e, v| async move {
             let p: P = parse(v)?;
-            json_of(repo_tools_cmds::get_submodule_count(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+            json_of(repo_tools_cmds::get_submodule_count(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
         }));
     }
     {
@@ -1960,7 +1958,7 @@ pub fn register(r: &mut Registry) {
                 .doc("`git submodule update --init` for `paths` (every submodule when empty).")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(repo_tools_cmds::update_submodules(p.repo_id, p.paths, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(repo_tools_cmds::update_submodules(p.repo_id, p.paths, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1980,7 +1978,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(repo_tools_cmds::get_lfs_status(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(repo_tools_cmds::get_lfs_status(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -1995,7 +1993,7 @@ pub fn register(r: &mut Registry) {
         }
         r.add(Spec::new("git.lfs.pull", "Run lfs pull", "git").params(vec![ParamInfo::req("repoId", ParamType::String)]).doc("Runs off the actor so a long download doesn't hold up every other command for this repo; git-lfs does its own locking.").run(|e, v| async move {
             let p: P = parse(v)?;
-            json_of(repo_tools_cmds::run_lfs_pull(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+            json_of(repo_tools_cmds::run_lfs_pull(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
         }));
     }
     {
@@ -2020,7 +2018,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        stash_cmds::stash_save(p.repo_id, p.message, p.include_untracked, &e.git())
+                        stash_cmds::stash_save(p.repo_id, p.message, p.include_untracked, e.git())
                             .await
                             .map_err(crate::EngineError::from)?,
                     )
@@ -2039,7 +2037,7 @@ pub fn register(r: &mut Registry) {
         r.add(Spec::new("git.stash.list", "Stash list", "git").params(vec![ParamInfo::req("repoId", ParamType::String)]).doc("").run(
             |e, v| async move {
                 let p: P = parse(v)?;
-                json_of(stash_cmds::stash_list(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                json_of(stash_cmds::stash_list(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
             },
         ));
     }
@@ -2059,7 +2057,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(stash_cmds::stash_pop(p.repo_id, p.index, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(stash_cmds::stash_pop(p.repo_id, p.index, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2079,7 +2077,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(stash_cmds::stash_apply(p.repo_id, p.index, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(stash_cmds::stash_apply(p.repo_id, p.index, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2100,7 +2098,7 @@ pub fn register(r: &mut Registry) {
                 .destructive()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(stash_cmds::stash_drop(p.repo_id, p.index, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(stash_cmds::stash_drop(p.repo_id, p.index, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2119,7 +2117,7 @@ pub fn register(r: &mut Registry) {
                 .doc("Reverts the last local action; returns its label.")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(undo_cmds::undo_last_action(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(undo_cmds::undo_last_action(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2138,7 +2136,7 @@ pub fn register(r: &mut Registry) {
                 .doc("Re-applies the last undone action; returns its label.")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(undo_cmds::redo_last_action(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(undo_cmds::redo_last_action(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2158,7 +2156,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(undo_cmds::get_undo_status(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(undo_cmds::get_undo_status(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2178,7 +2176,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(working_cmds::get_working_status(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(working_cmds::get_working_status(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2198,7 +2196,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(working_cmds::stage_path(p.repo_id, p.path, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(working_cmds::stage_path(p.repo_id, p.path, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2215,7 +2213,7 @@ pub fn register(r: &mut Registry) {
             Spec::new("git.working.stage-all", "Stage all", "git").params(vec![ParamInfo::req("repoId", ParamType::String)]).doc("").run(
                 |e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(working_cmds::stage_all(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(working_cmds::stage_all(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 },
             ),
         );
@@ -2236,7 +2234,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(working_cmds::unstage_path(p.repo_id, p.path, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(working_cmds::unstage_path(p.repo_id, p.path, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2255,7 +2253,7 @@ pub fn register(r: &mut Registry) {
                 .doc("")
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(working_cmds::unstage_all(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(working_cmds::unstage_all(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2276,7 +2274,7 @@ pub fn register(r: &mut Registry) {
                 .destructive()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(working_cmds::discard_path(p.repo_id, p.path, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(working_cmds::discard_path(p.repo_id, p.path, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2296,7 +2294,7 @@ pub fn register(r: &mut Registry) {
                 .destructive()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(working_cmds::discard_all(p.repo_id, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(working_cmds::discard_all(p.repo_id, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2324,7 +2322,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        working_cmds::apply_lines(p.repo_id, p.path, p.action, p.selection, &e.git())
+                        working_cmds::apply_lines(p.repo_id, p.path, p.action, p.selection, e.git())
                             .await
                             .map_err(crate::EngineError::from)?,
                     )
@@ -2344,7 +2342,7 @@ pub fn register(r: &mut Registry) {
         }
         r.add(Spec::new("git.working.ignore", "Add ignore pattern", "git").params(vec![ParamInfo::req("repoId", ParamType::String), ParamInfo::req("pattern", ParamType::String), ParamInfo::req("local", ParamType::Bool)]).doc("Appends `pattern` to `.gitignore`, or to `.git/info/exclude` when `local`. Resolves to `false` when the pattern was already there.").run(|e, v| async move {
             let p: P = parse(v)?;
-            json_of(working_cmds::add_ignore_pattern(p.repo_id, p.pattern, p.local, &e.git()).await.map_err(crate::EngineError::from)?)
+            json_of(working_cmds::add_ignore_pattern(p.repo_id, p.pattern, p.local, e.git()).await.map_err(crate::EngineError::from)?)
         }));
     }
     {
@@ -2364,7 +2362,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(working_cmds::get_workdir_diff(p.repo_id, p.staged, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(working_cmds::get_workdir_diff(p.repo_id, p.staged, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2406,7 +2404,7 @@ pub fn register(r: &mut Registry) {
                             p.author_email,
                             p.amend,
                             p.no_verify,
-                            &e.git(),
+                            e.git(),
                         )
                         .await
                         .map_err(crate::EngineError::from)?,
@@ -2440,7 +2438,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        working_cmds::amend_commit_message(p.repo_id, p.sha, p.summary, p.body, p.no_verify, &e.git())
+                        working_cmds::amend_commit_message(p.repo_id, p.sha, p.summary, p.body, p.no_verify, e.git())
                             .await
                             .map_err(crate::EngineError::from)?,
                     )
@@ -2481,7 +2479,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(wsl_cmds::wsl_home(p.distro, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(wsl_cmds::wsl_home(p.distro, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2501,7 +2499,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(wsl_cmds::list_wsl_dirs(p.path, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(wsl_cmds::list_wsl_dirs(p.path, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2521,7 +2519,7 @@ pub fn register(r: &mut Registry) {
                 .read_only()
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
-                    json_of(wsl_cmds::list_ssh_keys(p.distro, &e.git()).await.map_err(crate::EngineError::from)?)
+                    json_of(wsl_cmds::list_ssh_keys(p.distro, e.git()).await.map_err(crate::EngineError::from)?)
                 }),
         );
     }
@@ -2541,7 +2539,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        wsl_cmds::submit_ssh_passphrase(p.passphrase, &e.git())
+                        wsl_cmds::submit_ssh_passphrase(p.passphrase, e.git())
                             .await
                             .map_err(|()| crate::EngineError::Failed("submit_ssh_passphrase falhou".into()))?,
                     )
@@ -2559,7 +2557,7 @@ pub fn register(r: &mut Registry) {
             |e, v| async move {
                 let p: P = parse(v)?;
                 json_of(
-                    wsl_cmds::pending_ssh_passphrase(&e.git())
+                    wsl_cmds::pending_ssh_passphrase(e.git())
                         .await
                         .map_err(|()| crate::EngineError::Failed("pending_ssh_passphrase falhou".into()))?,
                 )
@@ -2583,7 +2581,7 @@ pub fn register(r: &mut Registry) {
                 .run(|e, v| async move {
                     let p: P = parse(v)?;
                     json_of(
-                        wsl_cmds::submit_https_credentials(p.username, p.password, &e.git())
+                        wsl_cmds::submit_https_credentials(p.username, p.password, e.git())
                             .await
                             .map_err(|()| crate::EngineError::Failed("submit_https_credentials falhou".into()))?,
                     )
@@ -2601,7 +2599,7 @@ pub fn register(r: &mut Registry) {
             |e, v| async move {
                 let p: P = parse(v)?;
                 json_of(
-                    wsl_cmds::pending_https_credentials(&e.git())
+                    wsl_cmds::pending_https_credentials(e.git())
                         .await
                         .map_err(|()| crate::EngineError::Failed("pending_https_credentials falhou".into()))?,
                 )

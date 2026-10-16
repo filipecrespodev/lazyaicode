@@ -36,7 +36,7 @@ pub fn scan(path: &Path) -> Result<Vec<WorkspaceRepoEntry>, GitCommandError> {
         .filter(|p| p.is_dir())
         .map(|p| WorkspaceRepoEntry { name: name_of(&p), is_repo: p.join(".git").exists(), path: p.display().to_string() })
         .collect();
-    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    out.sort_by_key(|a| a.name.to_lowercase());
     if path.join(".git").exists() {
         out.insert(0, WorkspaceRepoEntry { name: name_of(path), path: path.display().to_string(), is_repo: true });
     }

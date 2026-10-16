@@ -102,6 +102,10 @@ fn engine(cli: &Cli) -> Engine {
     Engine::new(EngineOpts { data_dir: cli.data_dir.clone(), ephemeral: cli.ephemeral })
 }
 
+/// O motor local fica guardado aqui para ser encerrado (agentes, terminais)
+/// antes de o processo sair.
+static LOCAL: std::sync::OnceLock<Engine> = std::sync::OnceLock::new();
+
 async fn backend(cli: &Cli) -> Result<Arc<dyn Backend>, String> {
     match cli.connect {
         Some(addr) => {
@@ -109,7 +113,11 @@ async fn backend(cli: &Cli) -> Result<Arc<dyn Backend>, String> {
             let t = token::read(&tf).map_err(|e| format!("token {}: {e}", tf.display()))?;
             Ok(Arc::new(ControlClient::connect(addr, &t).await.map_err(|e| e.to_string())?))
         }
-        None => Ok(EngineBackend::new(engine(cli))),
+        None => {
+            let e = engine(cli);
+            let _ = LOCAL.set(e.clone());
+            Ok(EngineBackend::new(e))
+        }
     }
 }
 
@@ -240,7 +248,7 @@ async fn run(cli: Cli) -> Result<(), String> {
             }
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {}
-                r = futures_first(tasks) => { if let Err(err) = r { return Err(err); } }
+                r = futures_first(tasks) => { r?; }
             }
             e.shutdown().await;
         }
@@ -271,7 +279,11 @@ fn main() {
             std::process::exit(1);
         }
     };
-    if let Err(e) = rt.block_on(run(cli)) {
+    let r = rt.block_on(run(cli));
+    if let Some(e) = LOCAL.get() {
+        rt.block_on(async { tokio::time::timeout(std::time::Duration::from_secs(5), e.shutdown()).await.ok() });
+    }
+    if let Err(e) = r {
         eprintln!("erro: {e}");
         std::process::exit(1);
     }

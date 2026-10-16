@@ -255,3 +255,59 @@ async fn panic_hunt_every_command_with_hostile_params() {
         }
     }
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_merge_conflict_is_listed_resolved_and_continued_through_commands() {
+    let tmp = tempfile::tempdir().unwrap();
+    let repo = tmp.path().join("r");
+    init_repo(&repo);
+    git(&repo, &["checkout", "-qb", "outro"]);
+    std::fs::write(repo.join("a.txt"), "deles\n").unwrap();
+    git(&repo, &["commit", "-qam", "deles"]);
+    git(&repo, &["checkout", "-q", "main"]);
+    std::fs::write(repo.join("a.txt"), "nosso\n").unwrap();
+    git(&repo, &["commit", "-qam", "nosso"]);
+    let e = engine(tmp.path());
+    let s = e.run("git.repo.open", json!({"path": repo.to_string_lossy()})).await.unwrap();
+    let rid = s["repoId"].as_str().unwrap().to_string();
+    let m = e.run("git.branch.merge", json!({"repoId": rid, "name": "outro"})).await.unwrap();
+    assert!(m.to_string().contains("onflict"), "{m}");
+    let st = e.run("git.repo.status", json!({"repoId": rid})).await.unwrap();
+    assert_eq!(st["inProgressOp"], json!("Merge"));
+    let rs = e.run("git.rebase.status", json!({"repoId": rid})).await.unwrap();
+    assert_eq!(rs["conflicts"][0]["path"], json!("a.txt"));
+    assert_eq!(rs["conflicts"][0]["theirsContent"], json!("deles\n"));
+    let after = e
+        .run(
+            "git.rebase.resolve-conflict",
+            json!({"repoId": rid, "path": "a.txt", "resolution": {"kind": "UseManualContent", "content": "os dois\n"}}),
+        )
+        .await
+        .unwrap();
+    assert_eq!(after["conflicts"], json!([]));
+    e.run("git.rebase.continue", json!({"repoId": rid})).await.unwrap();
+    assert_eq!(std::fs::read_to_string(repo.join("a.txt")).unwrap(), "os dois\n");
+    let st = e.run("git.repo.status", json!({"repoId": rid})).await.unwrap();
+    assert!(st["inProgressOp"].is_null(), "{st}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn line_staging_puts_only_the_picked_lines_in_the_index() {
+    let tmp = tempfile::tempdir().unwrap();
+    let repo = tmp.path().join("r");
+    init_repo(&repo);
+    std::fs::write(repo.join("a.txt"), "um\ndois\ntres\n").unwrap();
+    let e = engine(tmp.path());
+    let s = e.run("git.repo.open", json!({"path": repo.to_string_lossy()})).await.unwrap();
+    let rid = s["repoId"].as_str().unwrap().to_string();
+    // só a linha 2 ("dois") entra no staging
+    e.run(
+        "git.working.apply-lines",
+        json!({"repoId": rid, "path": "a.txt", "action": "stage", "selection": {"oldLines": [], "newLines": [2], "newTexts": ["dois"]}}),
+    )
+    .await
+    .unwrap();
+    let staged = std::process::Command::new("git").args(["diff", "--cached"]).current_dir(&repo).output().unwrap();
+    let staged = String::from_utf8_lossy(&staged.stdout).to_string();
+    assert!(staged.contains("+dois") && !staged.contains("+tres"), "{staged}");
+}

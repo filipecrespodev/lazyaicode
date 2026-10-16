@@ -17,6 +17,7 @@
 //! `tiny_skia::Pixmap`, que já sabe gravar PNG.
 
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing))]
 
 use std::collections::HashMap;
 
@@ -99,11 +100,10 @@ impl Textures {
         let (tx, ty) = (fx - x0, fy - y0);
         let (x0, y0) = (x0 as i64, y0 as i64);
         let (a, b, c, d) = (fetch(x0, y0), fetch(x0 + 1, y0), fetch(x0, y0 + 1), fetch(x0 + 1, y0 + 1));
+        let lerp = |a: f32, b: f32, t: f32| a + (b - a) * t;
         let mut out = [0.0; 4];
-        for (i, o) in out.iter_mut().enumerate() {
-            let top = a[i] + (b[i] - a[i]) * tx;
-            let bot = c[i] + (d[i] - c[i]) * tx;
-            *o = top + (bot - top) * ty;
+        for (o, (((a, b), c), d)) in out.iter_mut().zip(a.iter().zip(b).zip(c).zip(d)) {
+            *o = lerp(lerp(*a, b, tx), lerp(c, d, tx), ty);
         }
         out
     }
@@ -129,12 +129,10 @@ fn collect(prims: &[ClippedPrimitive], ppp: f32) -> Vec<Tri> {
     for cp in prims {
         let Primitive::Mesh(mesh) = &cp.primitive else { continue };
         let clip = [cp.clip_rect.min.x * ppp, cp.clip_rect.min.y * ppp, cp.clip_rect.max.x * ppp, cp.clip_rect.max.y * ppp];
-        for tri in mesh.indices.chunks_exact(3) {
-            let (Some(a), Some(b), Some(c)) = (
-                tri.first().and_then(|i| mesh.vertices.get(*i as usize)),
-                tri.get(1).and_then(|i| mesh.vertices.get(*i as usize)),
-                tri.get(2).and_then(|i| mesh.vertices.get(*i as usize)),
-            ) else {
+        for &[i0, i1, i2] in mesh.indices.as_chunks::<3>().0 {
+            let (Some(a), Some(b), Some(c)) =
+                (mesh.vertices.get(i0 as usize), mesh.vertices.get(i1 as usize), mesh.vertices.get(i2 as usize))
+            else {
                 continue;
             };
             let p = [[a.pos.x * ppp, a.pos.y * ppp], [b.pos.x * ppp, b.pos.y * ppp], [c.pos.x * ppp, c.pos.y * ppp]];
@@ -181,16 +179,16 @@ fn raster_tile(tris: &[Tri], tex: &Textures, x0: usize, y0: usize, w: usize, h: 
         if t.bbox[2] <= tx0 || t.bbox[0] >= tx1 || t.bbox[3] <= ty0 || t.bbox[1] >= ty1 {
             continue;
         }
-        let (a, mut b, mut c) = (0usize, 1usize, 2usize);
         let area = edge(t.p[0], t.p[1], t.p[2]);
         if area == 0.0 {
             continue;
         }
         // orientação horária no espaço de tela (y para baixo) para a regra top-left
-        if area < 0.0 {
-            std::mem::swap(&mut b, &mut c);
-        }
-        let (pa, pb, pc) = (t.p[a], t.p[b], t.p[c]);
+        let [p0, p1, p2] = t.p;
+        let [u0, u1, u2] = t.uv;
+        let [c0, c1, c2] = t.c;
+        let ((pa, pb, pc), (ua, ub, uc), (ca, cb, cc)) =
+            if area < 0.0 { ((p0, p2, p1), (u0, u2, u1), (c0, c2, c1)) } else { ((p0, p1, p2), (u0, u1, u2), (c0, c1, c2)) };
         let area = edge(pa, pb, pc);
         let inv = 1.0 / area;
         let (bias0, bias1, bias2) = (top_left(pb, pc), top_left(pc, pa), top_left(pa, pb));
@@ -218,25 +216,18 @@ fn raster_tile(tris: &[Tri], tex: &Textures, x0: usize, y0: usize, w: usize, h: 
                     continue;
                 }
                 let (l0, l1, l2) = (w0 * inv, w1 * inv, w2 * inv);
-                let ix = [a, b, c];
-                let mut col = [0.0f32; 4];
-                for (k, cv) in col.iter_mut().enumerate() {
-                    *cv = t.c.get(ix[0]).map_or(0.0, |v| v[k]) * l0
-                        + t.c.get(ix[1]).map_or(0.0, |v| v[k]) * l1
-                        + t.c.get(ix[2]).map_or(0.0, |v| v[k]) * l2;
-                }
+                let mix = |a: f32, b: f32, c: f32| a * l0 + b * l1 + c * l2;
+                let mut col = [mix(ca[0], cb[0], cc[0]), mix(ca[1], cb[1], cc[1]), mix(ca[2], cb[2], cc[2]), mix(ca[3], cb[3], cc[3])];
                 if textured {
-                    let u = t.uv[ix[0]][0] * l0 + t.uv[ix[1]][0] * l1 + t.uv[ix[2]][0] * l2;
-                    let v = t.uv[ix[0]][1] * l0 + t.uv[ix[1]][1] * l1 + t.uv[ix[2]][1] * l2;
-                    let s = tex.sample(t.tex, u, v);
-                    for k in 0..4 {
-                        col[k] *= s[k];
+                    let s = tex.sample(t.tex, mix(ua[0], ub[0], uc[0]), mix(ua[1], ub[1], uc[1]));
+                    for (cv, sv) in col.iter_mut().zip(s) {
+                        *cv *= sv;
                     }
                 }
                 let Some(dst) = buf.get_mut((y - y0) * w + (x - x0)) else { continue };
                 let ia = 1.0 - col[3].clamp(0.0, 1.0);
-                for k in 0..4 {
-                    dst[k] = col[k] + dst[k] * ia;
+                for (d, cv) in dst.iter_mut().zip(col) {
+                    *d = cv + *d * ia;
                 }
             }
         }
@@ -274,13 +265,11 @@ pub fn render(prims: &[ClippedPrimitive], tex: &Textures, size: [u32; 2], ppp: f
             let o = (y * w + x) * 4;
             // pré-multiplicado: cada canal fica ≤ alfa
             let a = px[3].clamp(0.0, 1.0);
-            for k in 0..3 {
-                if let Some(d) = data.get_mut(o + k) {
-                    *d = (px[k].clamp(0.0, a) * 255.0).round() as u8;
+            if let Some(out) = data.get_mut(o..o + 4) {
+                for (k, (d, v)) in out.iter_mut().zip(px).enumerate() {
+                    let v = if k == 3 { a } else { v.clamp(0.0, a) };
+                    *d = (v * 255.0).round() as u8;
                 }
-            }
-            if let Some(d) = data.get_mut(o + 3) {
-                *d = (a * 255.0).round() as u8;
             }
         }
     }

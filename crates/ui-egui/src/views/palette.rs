@@ -87,7 +87,7 @@ fn entries(app: &LazyApp, query: &str) -> Vec<Entry> {
             }
         }
     }
-    scored.sort_by(|a, b| b.0.cmp(&a.0));
+    scored.sort_by_key(|a| std::cmp::Reverse(a.0));
     scored.into_iter().take(80).map(|(_, e)| e).collect()
 }
 

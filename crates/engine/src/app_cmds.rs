@@ -204,7 +204,7 @@ pub fn register(r: &mut Registry) {
                     }
                     let mut changed = false;
                     if let Some(d) = p.claude_dir {
-                        let d = d.filter(|d| !d.is_empty() && PathBuf::from(d) != claude::default_claude_dir());
+                        let d = d.filter(|d| !d.is_empty() && *d != claude::default_claude_dir());
                         changed = d != w.claude_dir;
                         w.claude_dir = d;
                     }
@@ -539,7 +539,7 @@ pub(crate) fn create_workspace(s: &mut Store, path: &str, name: Option<String>, 
             .filter(|n| !n.trim().is_empty())
             .unwrap_or_else(|| p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or(path.to_string())),
         path: path.to_string(),
-        claude_dir: claude_dir.filter(|d| !d.is_empty() && PathBuf::from(d) != claude::default_claude_dir()),
+        claude_dir: claude_dir.filter(|d| !d.is_empty() && *d != claude::default_claude_dir()),
         ignored_paths: vec![],
         created_at: store::now(),
     };

@@ -19,8 +19,8 @@ fn generate(dir: &std::path::Path) {
     git(&["init", "-q", "-b", "main"]);
     let mut child = Command::new("git").current_dir(dir).args(["fast-import", "--quiet"]).stdin(Stdio::piped()).spawn().unwrap();
     let mut out = std::io::BufWriter::new(child.stdin.take().unwrap());
-    let mut data = |out: &mut dyn Write, b: &[u8]| {
-        write!(out, "data {}\n", b.len()).unwrap();
+    let data = |out: &mut dyn Write, b: &[u8]| {
+        writeln!(out, "data {}", b.len()).unwrap();
         out.write_all(b).unwrap();
         out.write_all(b"\n").unwrap();
     };
@@ -37,7 +37,7 @@ fn generate(dir: &std::path::Path) {
         write!(out, "author A <a@x> {0} +0000\ncommitter A <a@x> {0} +0000\n", t + c * 60).unwrap();
         data(&mut out, format!("commit {c}").as_bytes());
         if from > 0 {
-            write!(out, "from :{from}\n").unwrap();
+            writeln!(out, "from :{from}").unwrap();
         }
         if c <= 5000 && c % 5 == 1 {
             for _ in 0..5 {
@@ -47,7 +47,7 @@ fn generate(dir: &std::path::Path) {
             out.write_all(b"M 100644 inline big.txt\n").unwrap();
             data(&mut out, (big.join("\n") + "\n").as_bytes());
         }
-        write!(out, "M 100644 inline src/f{}.txt\n", c % 200).unwrap();
+        writeln!(out, "M 100644 inline src/f{}.txt", c % 200).unwrap();
         data(&mut out, format!("v{c}\n").as_bytes());
     }
     drop(out);

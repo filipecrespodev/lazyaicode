@@ -1,6 +1,6 @@
 #!/bin/sh
 # Instala o LazyAICode (Linux / WSL2 via WSLg) e um comando `lazyaicode` que
-# abre o app desacoplado do terminal. O AppImage se atualiza sozinho ao abrir.
+# abre o app desacoplado do terminal. Rode de novo para atualizar.
 set -eu
 REPO=filipecrespodev/lazyaicode
 DIR="$HOME/.local/share/lazyaicode/app"
@@ -13,7 +13,7 @@ case "$(uname -m)" in
 esac
 
 url=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
-  | grep -o 'https://[^"]*amd64\.AppImage"' | tr -d '"' | head -n1)
+  | grep -o 'https://[^"]*x86_64\.AppImage"' | tr -d '"' | head -n1)
 [ -n "$url" ] || { echo "nenhum AppImage no último release" >&2; exit 1; }
 curl -fL "$url" -o "$DIR/LazyAICode.AppImage"
 chmod +x "$DIR/LazyAICode.AppImage"

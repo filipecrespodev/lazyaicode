@@ -1,5 +1,8 @@
 //! Diferenças entre Linux, macOS, Windows, FreeBSD e WSL num lugar só.
 
+#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+
 pub mod wslpath;
 
 use std::path::{Path, PathBuf};
