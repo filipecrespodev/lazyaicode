@@ -59,6 +59,11 @@ pub trait Host {
     fn platform(&self) -> String;
     /// Agora, em ms desde 1970 (no wasm o `SystemTime` não existe).
     fn now_ms(&self) -> i64;
+    /// Fontes do sistema para os scripts que a fonte embutida não cobre
+    /// (chinês, japonês, coreano…): `(nome, bytes, índice na coleção)`.
+    fn extra_fonts(&self) -> Vec<(String, Vec<u8>, u32)> {
+        vec![]
+    }
     /// Fuso local em ms (para "hoje"/"ontem" na barra lateral).
     fn tz_offset_ms(&self) -> i64 {
         0

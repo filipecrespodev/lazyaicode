@@ -2659,6 +2659,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "lazyaicode-testkit"
+version = "0.3.0"
+dependencies = [
+ "tempfile",
+]
+
+[[package]]
 name = "lazyaicode-ui-egui"
 version = "0.3.0"
 dependencies = [
@@ -2677,6 +2684,23 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "lazyaicode-web"
+version = "0.3.0"
+dependencies = [
+ "base64 0.22.1",
+ "eframe",
+ "egui",
+ "js-sys",
+ "lazyaicode-ui-egui",
+ "log",
+ "rfd",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

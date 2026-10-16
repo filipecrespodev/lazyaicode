@@ -1036,7 +1036,7 @@ fn commit_list(app: &mut LazyApp, ui: &mut egui::Ui, path: &str) {
                 ui.painter().text(
                     egui::pos2(rect.left() + graph_w, rect.center().y),
                     egui::Align2::LEFT_CENTER,
-                    tf("gitWorking.uncommitted", &[("n", &dirty)]),
+                    tf("gitWorking.uncommitted", &[("count", &dirty)]),
                     egui::FontId::proportional(tk.text_size),
                     tk.p.amber,
                 );
@@ -1108,7 +1108,7 @@ fn commit_list(app: &mut LazyApp, ui: &mut egui::Ui, path: &str) {
                     "RemoteBranch" => (tk.p.blue.gamma_multiply(0.15), tk.p.blue),
                     _ => (tk.accent_soft, tk.p.accent),
                 };
-                let label = if *is_head { format!("● {name}") } else { name.clone() };
+                let label = if *is_head { format!("{} {name}", icon::CARET_RIGHT) } else { name.clone() };
                 let g = p.layout_no_wrap(label, egui::FontId::proportional(tk.text_size - 2.0), fg);
                 let rr = Rect::from_min_size(egui::pos2(x, rect.center().y - g.size().y / 2.0 - 2.0), g.size() + Vec2::new(8.0, 4.0));
                 p.rect_filled(rr, egui::CornerRadius::same(4), bg);

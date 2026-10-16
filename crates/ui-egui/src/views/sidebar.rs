@@ -290,7 +290,7 @@ fn thread_row(app: &mut LazyApp, ui: &mut egui::Ui, th: &lazyaicode_doc::ThreadV
     let g = painter.layout_job(job);
     painter.galley(egui::pos2(x, rect.center().y - g.size().y / 2.0), g, color);
     if th.thread.bookmarked {
-        painter.text(rect.left_center() + Vec2::new(4.0, 0.0), egui::Align2::LEFT_CENTER, "•", egui::FontId::proportional(8.0), tk.p.amber);
+        painter.text(rect.left_center() + Vec2::new(5.0, 0.0), egui::Align2::LEFT_CENTER, icon::STAR, egui::FontId::proportional(9.0), tk.p.amber);
     }
     let resp = resp.on_hover_text(format!("{}\n{}", th.thread.title, widgets::short_path(&th.thread.cwd)));
     if resp.clicked() {

@@ -1,8 +1,8 @@
 [workspace]
 resolver = "2"
-members = ["crates/platform", "crates/protocol", "crates/i18n", "crates/doc", "crates/git", "crates/agent", "crates/engine", "crates/automation", "crates/term", "crates/ui-egui", "crates/render-cpu", "apps/lazyaicode-wsl-agent", "apps/lazyaicode-cli", "apps/lazyaicode"]
+members = ["crates/*", "apps/*"]
 # lazyaicode-web só compila para wasm32 (cargo xtask wasm / trunk)
-# default-members
+default-members = ["crates/*", "apps/lazyaicode", "apps/lazyaicode-cli", "apps/lazyaicode-wsl-agent"]
 
 [workspace.package]
 version = "0.3.0"

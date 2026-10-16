@@ -278,7 +278,7 @@ fn mcp_chip(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
                 _ => tk.p.amber,
             };
             ui.horizontal(|ui| {
-                ui.label(RichText::new("●").color(c));
+                ui.label(RichText::new(icon::CIRCLE).color(c));
                 ui.label(&name);
                 ui.label(widgets::faint(&tk, status));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {

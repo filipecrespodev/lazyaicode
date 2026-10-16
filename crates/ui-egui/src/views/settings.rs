@@ -650,7 +650,7 @@ fn mcp(app: &mut LazyApp, ui: &mut egui::Ui) {
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("●").color(color));
+                    ui.label(RichText::new(icon::CIRCLE).color(color));
                     ui.label(RichText::new(s["name"].as_str().unwrap_or("")).strong());
                     ui.label(widgets::faint(&tk, status));
                     if let Some(scope) = s["scope"].as_str() {

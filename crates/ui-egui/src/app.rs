@@ -694,7 +694,7 @@ impl LazyApp {
         ctx.set_zoom_factor((a.scale.clamp(50, 250) as f32) / 100.0);
         let fonts_missing = !ctx.fonts(|f| f.definitions().font_data.contains_key("phosphor"));
         if fonts_missing {
-            ctx.set_fonts(theme::fonts());
+            ctx.set_fonts(theme::fonts(self.host.extra_fonts()));
         }
         self.applied = Some(key);
     }
@@ -746,6 +746,12 @@ impl LazyApp {
     /// como o da captura em CPU, começa sem eles).
     pub fn invalidate_theme(&mut self) {
         self.applied = None;
+    }
+
+    /// O servidor recusou a autenticação (token errado): a casca web volta
+    /// para a tela de login.
+    pub fn connection_refused(&self) -> bool {
+        self.data.connection_error.as_deref().is_some_and(|e| e.starts_with("unauthorized"))
     }
 
     pub fn has_pending(&self) -> bool {

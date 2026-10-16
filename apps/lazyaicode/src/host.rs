@@ -87,6 +87,27 @@ impl Host for DesktopHost {
         chrono::Utc::now().timestamp_millis()
     }
 
+    /// Uma fonte CJK do sistema (a embutida não tem chinês/japonês/coreano).
+    fn extra_fonts(&self) -> Vec<(String, Vec<u8>, u32)> {
+        const CANDIDATES: [&str; 10] = [
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+            "/usr/local/share/fonts/noto/NotoSansCJK-Regular.ttc",
+            "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/Hiragino Sans GB.ttc",
+            "C:\\Windows\\Fonts\\msyh.ttc",
+            "C:\\Windows\\Fonts\\simsun.ttc",
+            "/mnt/c/Windows/Fonts/msyh.ttc",
+        ];
+        CANDIDATES
+            .iter()
+            .find_map(|p| std::fs::read(p).ok().map(|b| ("cjk".to_string(), b, 0)))
+            .into_iter()
+            .collect()
+    }
+
     fn tz_offset_ms(&self) -> i64 {
         i64::from(chrono::Local::now().offset().local_minus_utc()) * 1000
     }

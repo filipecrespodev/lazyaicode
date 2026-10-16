@@ -423,10 +423,19 @@ impl Tokens {
     }
 }
 
-/// Fontes: a padrão do egui mais os ícones Phosphor.
-pub fn fonts() -> egui::FontDefinitions {
+/// Fontes: a padrão do egui, os ícones Phosphor e, no fim da fila, as
+/// fontes do sistema que cobrem outros scripts (`extra`).
+pub fn fonts(extra: Vec<(String, Vec<u8>, u32)>) -> egui::FontDefinitions {
     let mut f = egui::FontDefinitions::default();
     egui_phosphor::add_to_fonts(&mut f, egui_phosphor::Variant::Regular);
+    for (name, bytes, index) in extra {
+        let mut data = egui::FontData::from_owned(bytes);
+        data.index = index;
+        f.font_data.insert(name.clone(), data.into());
+        for fam in [FontFamily::Proportional, FontFamily::Monospace] {
+            f.families.entry(fam).or_default().push(name.clone());
+        }
+    }
     f
 }
 

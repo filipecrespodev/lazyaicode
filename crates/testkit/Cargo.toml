@@ -1,0 +1,13 @@
+[package]
+name = "lazyaicode-testkit"
+description = "Ajudantes de teste: repositórios git descartáveis e um `claude` falso que fala stream-json"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -194,3 +194,48 @@ mod tests {
         assert_eq!(header(h, "origin"), None);
     }
 }
+
+#[cfg(test)]
+mod live {
+    use super::*;
+    use crate::backend::EngineBackend;
+    use lazyaicode_engine::{Engine, EngineOpts};
+    use serde_json::json;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn serves_static_files_and_the_control_channel_on_one_port() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("index.html"), "<h1>oi</h1>").unwrap();
+        let engine = Engine::new(EngineOpts { data_dir: Some(tmp.path().join("data")), ephemeral: true });
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(serve_listener(listener, "tok".into(), Some(tmp.path().to_path_buf()), EngineBackend::new(engine)));
+
+        // HTTP
+        let mut s = TcpStream::connect(addr).await.unwrap();
+        s.write_all(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n").await.unwrap();
+        let mut body = String::new();
+        s.read_to_string(&mut body).await.unwrap();
+        assert!(body.starts_with("HTTP/1.1 200") && body.contains("<h1>oi</h1>"), "{body}");
+        let mut s = TcpStream::connect(addr).await.unwrap();
+        s.write_all(b"GET /../../etc/passwd HTTP/1.1\r\nHost: x\r\n\r\n").await.unwrap();
+        let mut body = String::new();
+        s.read_to_string(&mut body).await.unwrap();
+        assert!(body.starts_with("HTTP/1.1 404"), "{body}");
+
+        // WebSocket: auth, comando, outra origem recusada
+        let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/ws")).await.unwrap();
+        ws.send(Message::Text(json!({"id": 1, "method": "auth", "params": {"token": "tok"}}).to_string().into())).await.unwrap();
+        ws.send(Message::Text(json!({"id": 2, "method": "engine.ping"}).to_string().into())).await.unwrap();
+        let mut got = Vec::new();
+        while got.len() < 2 {
+            if let Some(Ok(Message::Text(t))) = ws.next().await {
+                got.push(t.to_string());
+            }
+        }
+        assert!(got[1].contains("pong"), "{got:?}");
+        let mut req = tokio_tungstenite::tungstenite::client::IntoClientRequest::into_client_request(format!("ws://{addr}/ws")).unwrap();
+        req.headers_mut().insert("origin", "https://evil.example".parse().unwrap());
+        assert!(tokio_tungstenite::connect_async(req).await.is_err(), "origem de outro site deve ser recusada");
+    }
+}

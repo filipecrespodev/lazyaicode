@@ -175,14 +175,16 @@ fn repo_header(app: &mut LazyApp, ui: &mut egui::Ui, p: &lazyaicode_doc::Project
     egui::Frame::new().inner_margin(egui::Margin { left: 14, right: 10, top: 8, bottom: 4 }).show(ui, |ui| {
         ui.horizontal(|ui| {
             ui.label(RichText::new(format!("{}  {}", icon::GIT_BRANCH, p.name)).size(tk.text_size + 3.0).strong());
-            ui.label(widgets::muted(&tk, widgets::short_path(&p.path)));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if widgets::button(ui, &tk, &format!("{}  {}", icon::NOTE_PENCIL, t("sidebar.newThreadHere"))).clicked() {
-                    let _ = crate::commands::new_thread(app, &json!({ "projectId": p.id }), false);
-                }
                 if widgets::icon_button(ui, &tk, icon::X, &t("repoScreen.close")).clicked() {
                     app.state.repo_project = None;
                 }
+                if widgets::button(ui, &tk, &format!("{}  {}", icon::NOTE_PENCIL, t("sidebar.newThreadHere"))).clicked() {
+                    let _ = crate::commands::new_thread(app, &json!({ "projectId": p.id }), false);
+                }
+                ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                    ui.add(egui::Label::new(widgets::muted(&tk, widgets::short_path(&p.path))).truncate());
+                });
             });
         });
     });

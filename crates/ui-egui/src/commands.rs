@@ -352,6 +352,28 @@ fn build() -> Vec<UiCmd> {
         ok()
     })
     .params(vec![ParamInfo::opt("id", ParamType::String), ParamInfo::req("paths", ParamType::Strings)]);
+    r.add("ui.composer.attach-data", "Attach image data", "thread", None, |app, p| {
+        let id = p.get("id").and_then(Value::as_str).map(str::to_string).map_or_else(|| sel(app), Ok)?;
+        let mime = str_param(p, "mime")?;
+        if !["image/png", "image/jpeg", "image/gif", "image/webp"].contains(&mime.as_str()) {
+            return Err(t("thread.onlyImages"));
+        }
+        let data = str_param(p, "data")?;
+        if data.len() > 7 * 1024 * 1024 {
+            return Err(lazyaicode_i18n::tf("images.tooLarge", &[("name", &p.get("name").and_then(Value::as_str).unwrap_or("?"))]));
+        }
+        let list = app.data.attachments.entry(id).or_default();
+        if list.len() < crate::views::composer::MAX_IMAGES {
+            list.push(crate::data::Attachment { mime, data, name: p.get("name").and_then(Value::as_str).unwrap_or("imagem").into() });
+        }
+        ok()
+    })
+    .params(vec![
+        ParamInfo::opt("id", ParamType::String),
+        ParamInfo::req("mime", ParamType::String),
+        ParamInfo::req("data", ParamType::String).doc("base64"),
+        ParamInfo::opt("name", ParamType::String),
+    ]);
     r.add("ui.composer.paste-image", "Paste image", "thread", Some("Ctrl+Shift+V"), |app, _| {
         let id = sel(app)?;
         crate::views::composer::paste_image(app, &id);
