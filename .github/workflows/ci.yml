@@ -27,7 +27,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev libvulkan-dev mesa-vulkan-drivers
-      - run: git config --global user.email ci@lazyaicode && git config --global user.name ci
+      # os testes comparam o texto exato dos arquivos; o runner do Windows vem com autocrlf=true
+      - run: git config --global user.email ci@lazyaicode && git config --global user.name ci && git config --global core.autocrlf false
       - run: cargo xtask ci
 
   fuzz-smoke:

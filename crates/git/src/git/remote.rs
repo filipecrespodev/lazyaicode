@@ -892,7 +892,9 @@ mod tests {
         config.set_str("credential.helper", "!f() { echo username=u; echo password=gcm-$GCM_INTERACTIVE; }; f").unwrap();
         let password = |mode| helper_credentials(dir.path(), url, Some("u"), mode).unwrap().password;
         assert_eq!(password(AuthMode::Background), "gcm-never");
-        assert_eq!(password(AuthMode::Interactive), "gcm-");
+        // Interactive keeps whatever the environment already says (the Windows runner sets `Never`).
+        let inherited = std::env::var("GCM_INTERACTIVE").unwrap_or_default();
+        assert_eq!(password(AuthMode::Interactive), format!("gcm-{inherited}"));
 
         // No answer: git would prompt, but may not.
         config.set_str("credential.helper", "!true").unwrap();
@@ -949,7 +951,8 @@ mod tests {
         let bare_dir = tempfile::tempdir().unwrap();
         git2::Repository::init_bare(bare_dir.path()).unwrap();
         let (_dir, repo) = init_with_remotes(&[]);
-        repo.remote("origin", bare_dir.path().to_str().unwrap()).unwrap();
+        // forward slashes: a `\` in a remote URL is an escape in the config file
+        repo.remote("origin", &bare_dir.path().to_str().unwrap().replace('\\', "/")).unwrap();
         commit_file(&repo, "a.txt", "a", "first");
         let branch = repo.head().unwrap().shorthand().unwrap().to_string();
         push(&repo, "origin", &branch, false, |_, _, _| {}).unwrap();
