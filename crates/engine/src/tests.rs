@@ -1,0 +1,257 @@
+//! Testes do motor pelo mesmo caminho que a UI, a CLI e o MCP usam:
+//! `Engine::run(id, params)`.
+
+use super::*;
+use serde_json::json;
+use std::path::Path;
+
+fn engine(dir: &Path) -> Engine {
+    Engine::new(EngineOpts { data_dir: Some(dir.join("data")), ephemeral: false })
+}
+
+fn git(dir: &Path, args: &[&str]) {
+    let ok = std::process::Command::new("git").args(args).current_dir(dir).output().map(|o| o.status.success()).unwrap_or(false);
+    assert!(ok, "git {args:?}");
+}
+
+fn init_repo(dir: &Path) {
+    std::fs::create_dir_all(dir).unwrap();
+    git(dir, &["init", "-q", "-b", "main"]);
+    git(dir, &["config", "user.email", "t@example.com"]);
+    git(dir, &["config", "user.name", "T"]);
+    std::fs::write(dir.join("a.txt"), "um\n").unwrap();
+    git(dir, &["add", "."]);
+    git(dir, &["commit", "-q", "-m", "first"]);
+}
+
+#[test]
+fn every_command_is_well_formed_and_unique() {
+    let cmds = commands();
+    assert!(cmds.len() >= 160, "só {} comandos", cmds.len());
+    let mut ids = std::collections::HashSet::new();
+    for c in &cmds {
+        assert!(lazyaicode_protocol::valid_command_id(&c.id), "id inválido: {}", c.id);
+        assert!(ids.insert(c.id.clone()), "id repetido: {}", c.id);
+        assert!(!c.label.is_empty() && !c.group.is_empty(), "{}", c.id);
+        let mut names = std::collections::HashSet::new();
+        for p in &c.params {
+            assert!(names.insert(p.name.clone()), "{}: parâmetro repetido {}", c.id, p.name);
+            assert!(!p.name.contains('_'), "{}: parâmetro em snake_case {}", c.id, p.name);
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn unknown_commands_and_bad_params_are_errors_not_panics() {
+    let tmp = tempfile::tempdir().unwrap();
+    let e = engine(tmp.path());
+    assert!(matches!(e.run("nao.existe", Value::Null).await, Err(EngineError::UnknownCommand(_))));
+    assert!(matches!(e.run("thread.get", json!({})).await, Err(EngineError::BadParams(_))));
+    assert!(matches!(e.run("thread.get", json!({"id": 1})).await, Err(EngineError::BadParams(_))));
+    assert!(matches!(e.run("thread.get", json!({"id": "x", "extra": 1})).await, Err(EngineError::BadParams(_))));
+    assert!(matches!(e.run("thread.get", json!({"id": "x"})).await, Err(EngineError::NotFound(_))));
+    assert_eq!(e.run("engine.ping", Value::Null).await.unwrap(), json!("pong"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn workspace_project_isolated_thread_review_and_land() {
+    let tmp = tempfile::tempdir().unwrap();
+    let ws = tmp.path().join("ws");
+    let repo = ws.join("app");
+    init_repo(&repo);
+    std::fs::create_dir_all(ws.join("docs")).unwrap();
+    let e = engine(tmp.path());
+
+    let w = e.run("workspace.create", json!({"path": ws.to_string_lossy()})).await.unwrap();
+    let wid = w["id"].as_str().unwrap().to_string();
+    let projects = e.run("project.list", json!({"workspaceId": wid})).await.unwrap();
+    let names: Vec<&str> = projects.as_array().unwrap().iter().map(|p| p["name"].as_str().unwrap()).collect();
+    assert_eq!(names, vec!["app", "docs"]);
+    let app = projects.as_array().unwrap().iter().find(|p| p["name"] == "app").unwrap();
+    assert_eq!(app["is_git"], json!(true));
+
+    let t = e.run("thread.create", json!({"workspaceId": wid, "projectId": app["id"], "isolated": true})).await.unwrap();
+    let tid = t["id"].as_str().unwrap().to_string();
+    assert_eq!(t["isolated"], json!(true));
+    assert_eq!(t["status"], json!("idle"));
+    let cwd = PathBuf::from(t["cwd"].as_str().unwrap());
+    assert!(cwd.join("a.txt").is_file(), "checkout isolado criado");
+
+    // o "agente" muda um arquivo no checkout da thread
+    std::fs::write(cwd.join("a.txt"), "um\ndois\n").unwrap();
+    let ch = e.run("thread.changes", json!({"id": tid, "base": "upstream"})).await.unwrap();
+    let files = ch["files"].as_array().unwrap();
+    assert_eq!(files.len(), 1);
+    assert_eq!(files[0]["path"], json!("a.txt"));
+    assert_eq!(files[0]["seen"], json!(false));
+    let fp = files[0]["fingerprint"].clone();
+    e.run("thread.set-seen", json!({"id": tid, "entries": [["a.txt", fp]]})).await.unwrap();
+    let ch = e.run("thread.changes", json!({"id": tid, "base": "upstream"})).await.unwrap();
+    assert_eq!(ch["files"][0]["seen"], json!(true));
+    let st = e.run("thread.diff-stats", json!({"id": tid})).await.unwrap();
+    assert_eq!((st["additions"].as_u64(), st["files"].as_u64()), (Some(1), Some(1)));
+
+    // integra no checkout principal como mudança não commitada
+    e.run("thread.land", json!({"id": tid, "mode": "apply"})).await.unwrap();
+    assert_eq!(std::fs::read_to_string(repo.join("a.txt")).unwrap(), "um\ndois\n");
+
+    // arquivar remove o checkout e mantém a branch; desarquivar recria
+    e.run("thread.archive", json!({"id": tid, "archived": true})).await.unwrap();
+    assert!(!cwd.exists());
+    e.run("thread.archive", json!({"id": tid, "archived": false})).await.unwrap();
+    assert!(cwd.join("a.txt").exists());
+
+    // o journal guardou as mudanças, não as leituras
+    let j: Vec<String> = e.journal().into_iter().map(|j| j.command).collect();
+    assert!(j.contains(&"thread.create".to_string()) && !j.contains(&"thread.changes".to_string()), "{j:?}");
+
+    // estado sobrevive a reabrir o motor
+    drop(e);
+    let e = engine(tmp.path());
+    let list = e.run("thread.list", json!({"workspaceId": wid})).await.unwrap();
+    assert_eq!(list.as_array().map(Vec::len), Some(1));
+
+    e.run("thread.delete", json!({"id": tid})).await.unwrap();
+    assert!(!cwd.exists());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn git_commands_drive_the_repository_actor() {
+    let tmp = tempfile::tempdir().unwrap();
+    let repo = tmp.path().join("r");
+    init_repo(&repo);
+    let e = engine(tmp.path());
+    let path = repo.to_string_lossy().to_string();
+    let summary = e.run("git.repo.open", json!({"path": path})).await.unwrap();
+    let rid = summary["repoId"].as_str().unwrap().to_string();
+    std::fs::write(repo.join("b.txt"), "novo\n").unwrap();
+    let st = e.run("git.working.status", json!({"repoId": rid})).await.unwrap();
+    assert!(st.to_string().contains("b.txt"), "{st}");
+    e.run("git.working.stage-all", json!({"repoId": rid})).await.unwrap();
+    let branches = e.run("git.branch.list", json!({"repoId": rid})).await.unwrap();
+    assert!(branches.to_string().contains("main"), "{branches}");
+    let log = e
+        .run(
+            "engine.batch",
+            json!({"steps": [
+                {"command": "git.working.status", "params": {"repoId": rid}},
+                {"command": "nao.existe"},
+                {"command": "engine.ping"},
+            ]}),
+        )
+        .await
+        .unwrap();
+    let steps = log.as_array().unwrap();
+    assert_eq!(steps.len(), 2, "parou no erro");
+    assert_eq!(steps[1]["ok"], json!(false));
+}
+
+/// Um "claude" falso que fala stream-json: anuncia a sessão, responde e
+/// fecha o turno. Exercita o caminho inteiro de `thread.send` até os eventos.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn send_streams_agent_events_and_updates_the_thread() {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = tempfile::tempdir().unwrap();
+    let ws = tmp.path().join("ws");
+    init_repo(&ws.join("app"));
+    let bin = tmp.path().join("fake-claude");
+    std::fs::write(
+        &bin,
+        "#!/bin/sh\necho '{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"sess-1\"}'\n\
+         while read -r l; do\n\
+           case \"$l\" in *'\"type\":\"user\"'*)\n\
+             echo '{\"type\":\"assistant\",\"message\":{\"id\":\"m1\",\"content\":[{\"type\":\"text\",\"text\":\"feito\"}]}}'\n\
+             echo '{\"type\":\"result\",\"is_error\":false,\"duration_ms\":5,\"total_cost_usd\":0}';;\n\
+           esac\n\
+         done\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::env::set_var("LAZYAICODE_CLAUDE_BIN", &bin);
+
+    let e = engine(tmp.path());
+    let mut rx = e.subscribe();
+    let w = e.run("workspace.create", json!({"path": ws.to_string_lossy()})).await.unwrap();
+    let projects = e.run("project.list", json!({"workspaceId": w["id"]})).await.unwrap();
+    let t = e.run("thread.create", json!({"workspaceId": w["id"], "projectId": projects[0]["id"], "isolated": false})).await.unwrap();
+    let tid = t["id"].as_str().unwrap().to_string();
+    e.run("thread.send", json!({"id": tid, "text": "faça algo\nsegunda linha"})).await.unwrap();
+
+    let mut transcript = lazyaicode_doc::transcript::Transcript::new();
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        let ev = tokio::time::timeout_at(deadline, rx.recv()).await.expect("sem eventos").unwrap();
+        if ev.event == events::AGENT_EVENT {
+            transcript.apply(&ev.payload["msg"]);
+        }
+        if ev.event == events::THREAD_STATUS && ev.payload["status"] == "idle" {
+            break;
+        }
+    }
+    assert!(transcript.items.iter().any(|i| matches!(i, lazyaicode_doc::transcript::Item::Text { text, .. } if text == "feito")));
+    let t = e.run("thread.get", json!({"id": tid})).await.unwrap();
+    assert_eq!(t["session_id"], json!("sess-1"));
+    assert_eq!(t["title"], json!("faça algo"));
+    assert_eq!(t["unread"], json!(true));
+    e.shutdown().await;
+}
+
+/// Todo comando, com parâmetros do tipo certo mas valores vazios ou
+/// absurdos, devolve `Ok` ou `Err` — nunca entra em pânico. Comandos que
+/// abrem janelas, navegador ou processos externos ficam de fora.
+#[tokio::test(flavor = "multi_thread")]
+async fn panic_hunt_every_command_with_hostile_params() {
+    use lazyaicode_protocol::ParamType;
+    let tmp = tempfile::tempdir().unwrap();
+    let e = engine(tmp.path());
+    let skip = [
+        "provider.",
+        "system.open-path",
+        "git.config.open-in-editor",
+        "terminal.spawn",
+        "wsl.",
+        "git.lfs.",
+        "git.ssh.",
+        "git.https.",
+        "ai.",
+        "capabilities.get",
+        "thread.send",
+        "git.remote.",
+        "git.pull.",
+        "github.",
+        "gitlab.",
+        "system.fonts",
+        "git.submodule.update",
+    ];
+    for c in commands() {
+        if skip.iter().any(|s| c.id.starts_with(s)) {
+            continue;
+        }
+        for variant in 0..3 {
+            let mut params = serde_json::Map::new();
+            for p in &c.params {
+                let v = match (&p.ty, variant) {
+                    (ParamType::String | ParamType::Path, 0) => json!(""),
+                    (ParamType::String | ParamType::Path, 1) => json!("../../../etc/passwd"),
+                    (ParamType::String | ParamType::Path, _) => json!("\u{0}💥".repeat(50)),
+                    (ParamType::Bool, v) => json!(v == 1),
+                    (ParamType::Int, 0) => json!(0),
+                    (ParamType::Int, 1) => json!(u64::MAX),
+                    (ParamType::Int, _) => json!(-1),
+                    (ParamType::Number, _) => json!(-1.5),
+                    (ParamType::Enum(o), _) => json!(o.first()),
+                    (ParamType::Strings, _) => json!(["", "x"]),
+                    (ParamType::Json, 0) => json!({}),
+                    (ParamType::Json, 1) => json!([]),
+                    (ParamType::Json, _) => json!(null),
+                };
+                if p.required || variant > 0 {
+                    params.insert(p.name.clone(), v);
+                }
+            }
+            let r = e.run(&c.id, Value::Object(params)).await;
+            assert!(!matches!(r, Err(EngineError::Panicked(_))), "{} entrou em pânico (variante {variant}): {r:?}", c.id);
+        }
+    }
+}

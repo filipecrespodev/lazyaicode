@@ -1,0 +1,23 @@
+[package]
+name = "lazyaicode-wsl-agent"
+description = "O backend git que roda dentro de uma distro WSL para o app do Windows (fala `lazyaicode_git::proto` no stdio)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "lazyaicode-agent"
+path = "src/main.rs"
+
+[dependencies]
+lazyaicode-git.workspace = true
+
+[dev-dependencies]
+lazyaicode-engine.workspace = true
+git2.workspace = true
+tokio.workspace = true
+tempfile.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,25 @@
+[package]
+name = "lazyaicode-cli"
+description = "LazyAICode sem janela: listar e executar comandos, lotes em JSON, servidor MCP e o servidor da versão web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "lazyaicode-cli"
+path = "src/main.rs"
+
+[dependencies]
+lazyaicode-protocol.workspace = true
+lazyaicode-engine.workspace = true
+lazyaicode-automation.workspace = true
+lazyaicode-git.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+clap = { version = "4", features = ["derive", "env"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

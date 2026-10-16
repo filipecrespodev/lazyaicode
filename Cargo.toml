@@ -1,0 +1,92 @@
+[workspace]
+resolver = "2"
+members = ["crates/platform", "crates/protocol", "crates/i18n", "crates/doc", "crates/git", "crates/agent", "crates/engine", "crates/automation", "crates/term", "crates/ui-egui", "crates/render-cpu", "apps/lazyaicode-wsl-agent", "apps/lazyaicode-cli", "apps/lazyaicode"]
+# lazyaicode-web só compila para wasm32 (cargo xtask wasm / trunk)
+# default-members
+
+[workspace.package]
+version = "0.3.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/filipecrespodev/lazyaicode"
+rust-version = "1.88"
+
+[workspace.dependencies]
+# internos
+lazyaicode-platform = { path = "crates/platform" }
+lazyaicode-protocol = { path = "crates/protocol" }
+lazyaicode-i18n = { path = "crates/i18n" }
+lazyaicode-term = { path = "crates/term" }
+lazyaicode-doc = { path = "crates/doc" }
+lazyaicode-git = { path = "crates/git" }
+lazyaicode-agent = { path = "crates/agent" }
+lazyaicode-engine = { path = "crates/engine" }
+lazyaicode-automation = { path = "crates/automation" }
+lazyaicode-render-cpu = { path = "crates/render-cpu" }
+lazyaicode-ui-egui = { path = "crates/ui-egui" }
+lazyaicode-testkit = { path = "crates/testkit" }
+
+# externos
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["process", "io-util", "io-std", "sync", "rt-multi-thread", "macros", "time", "net", "signal"] }
+uuid = { version = "1", features = ["v4"] }
+anyhow = "1"
+thiserror = "2"
+portable-pty = "0.9"
+base64 = "0.22"
+dirs = "6"
+parking_lot = "0.12"
+chrono = { version = "0.4", default-features = false, features = ["serde", "clock", "std"] }
+trash = "5"
+git2 = { version = "0.21", features = ["vendored-libgit2", "vendored-openssl", "ssh"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+md5 = "0.8"
+tempfile = "3"
+vt100 = "0.16"
+egui = "0.36"
+eframe = { version = "0.36", default-features = false }
+egui_extras = { version = "0.36", default-features = false }
+egui_kittest = "0.36"
+egui_commonmark = { version = "0.25", default-features = false, features = ["pulldown_cmark"] }
+egui-phosphor = "0.14"
+epaint = "0.36"
+tiny-skia = "0.12"
+rayon = "1"
+rfd = "0.17"
+arboard = "3"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+tungstenite = "0.30"
+ewebsock = "0.8"
+log = "0.4"
+proptest = "1"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+
+# libgit2, openssl, wgpu otimizados também em dev: só o código do app fica
+# sem otimização, para recompilar rápido.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
+# Build do navegador (apps/lazyaicode-web): o wasm é baixado a cada visita.
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+lto = "fat"
+panic = "abort"
+
+[profile.wasm-release.package."*"]
+opt-level = "s"

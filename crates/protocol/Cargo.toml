@@ -1,0 +1,16 @@
+[package]
+name = "lazyaicode-protocol"
+description = "L0: o contrato entre a UI, o motor e a automação — metadados de comandos, quadros do canal de controle e eventos (compila para wasm)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

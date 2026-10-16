@@ -1,0 +1,53 @@
+[package]
+name = "lazyaicode"
+description = "LazyAICode — workspace desktop para agentes de código (Claude Code, Codex, Gemini) com threads isoladas, revisão de diff e git"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+default-run = "lazyaicode"
+
+[[bin]]
+name = "lazyaicode"
+path = "src/main.rs"
+
+[dependencies]
+lazyaicode-protocol.workspace = true
+lazyaicode-engine.workspace = true
+lazyaicode-automation.workspace = true
+lazyaicode-ui-egui.workspace = true
+lazyaicode-render-cpu.workspace = true
+lazyaicode-git.workspace = true
+lazyaicode-platform.workspace = true
+egui.workspace = true
+eframe = { workspace = true, features = ["wgpu", "default_fonts", "x11", "wayland", "accesskit", "links"] }
+serde_json.workspace = true
+tokio.workspace = true
+base64.workspace = true
+image.workspace = true
+rfd.workspace = true
+arboard = { workspace = true, features = ["wayland-data-control"] }
+log.workspace = true
+env_logger = { version = "0.11", default-features = false, features = ["auto-color", "humantime"] }
+chrono.workspace = true
+
+[lints]
+workspace = true
+
+[package.metadata.deb]
+name = "lazyaicode"
+maintainer = "Filipe Crespo"
+section = "devel"
+assets = [
+  ["target/release/lazyaicode", "usr/bin/", "755"],
+  ["target/release/lazyaicode-cli", "usr/bin/", "755"],
+  ["../../packaging/linux/lazyaicode.desktop", "usr/share/applications/", "644"],
+  ["../../assets/icons/128x128.png", "usr/share/icons/hicolor/128x128/apps/lazyaicode.png", "644"],
+]
+
+[package.metadata.generate-rpm]
+assets = [
+  { source = "target/release/lazyaicode", dest = "/usr/bin/lazyaicode", mode = "755" },
+  { source = "target/release/lazyaicode-cli", dest = "/usr/bin/lazyaicode-cli", mode = "755" },
+  { source = "../../packaging/linux/lazyaicode.desktop", dest = "/usr/share/applications/lazyaicode.desktop", mode = "644" },
+  { source = "../../assets/icons/128x128.png", dest = "/usr/share/icons/hicolor/128x128/apps/lazyaicode.png", mode = "644" },
+]

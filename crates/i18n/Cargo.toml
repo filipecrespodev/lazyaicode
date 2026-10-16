@@ -1,0 +1,12 @@
+[package]
+name = "lazyaicode-i18n"
+description = "L0: textos da interface em inglês, português, espanhol e chinês"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

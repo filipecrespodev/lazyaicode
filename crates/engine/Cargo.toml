@@ -1,0 +1,33 @@
+[package]
+name = "lazyaicode-engine"
+description = "L2: a sessão do app e o registro de comandos — toda ação do usuário, da CLI, do canal de controle e do MCP passa por aqui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+lazyaicode-platform.workspace = true
+lazyaicode-protocol.workspace = true
+lazyaicode-doc.workspace = true
+lazyaicode-git.workspace = true
+lazyaicode-agent.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+parking_lot.workspace = true
+chrono.workspace = true
+dirs.workspace = true
+md5.workspace = true
+trash.workspace = true
+base64.workspace = true
+git2.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+git2.workspace = true
+
+[lints]
+workspace = true

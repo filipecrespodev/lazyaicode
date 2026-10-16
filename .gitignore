@@ -1,6 +1,10 @@
-node_modules
-dist
-src-tauri/target
-src-tauri/gen
-.vitest
-src-tauri/resources/lazyaicode-agent
+/target
+/book/output
+/fuzz/target
+/fuzz/corpus
+/fuzz/artifacts
+/dist
+/apps/lazyaicode-web/dist
+/packaging/out
+*.profraw
+.DS_Store

@@ -1,0 +1,28 @@
+[package]
+name = "lazyaicode-ui-egui"
+description = "L4: a interface do LazyAICode em egui — uma camada fina sobre o motor: toda ação é um comando (local ou pelo canal de controle)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+lazyaicode-protocol.workspace = true
+lazyaicode-doc.workspace = true
+lazyaicode-i18n.workspace = true
+lazyaicode-term.workspace = true
+egui.workspace = true
+egui_extras = { workspace = true, features = ["image"] }
+egui_commonmark.workspace = true
+egui-phosphor.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+ewebsock.workspace = true
+log.workspace = true
+image.workspace = true
+
+[dev-dependencies]
+egui_kittest = { workspace = true, features = ["snapshot", "wgpu"] }
+
+[lints]
+workspace = true

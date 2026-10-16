@@ -1,0 +1,15 @@
+[package]
+name = "lazyaicode-term"
+description = "L0: emulador de terminal (VT/xterm) sem IO — recebe bytes do PTY e expõe a grade de células para desenhar (compila para wasm)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+vt100.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

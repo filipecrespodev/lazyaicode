@@ -1,0 +1,19 @@
+[package]
+name = "lazyaicode-render-cpu"
+description = "L4: renderizador de referência em CPU para a saída do egui (triângulos texturizados em tiles de 256² com rayon, PNG via tiny-skia) — o oráculo contra o qual o compositor wgpu é testado"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+epaint.workspace = true
+tiny-skia.workspace = true
+rayon.workspace = true
+
+[dev-dependencies]
+egui.workspace = true
+egui_kittest = { workspace = true, features = ["wgpu"] }
+image.workspace = true
+
+[lints]
+workspace = true
