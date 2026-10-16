@@ -642,6 +642,7 @@ mod tests {
         std::env::remove_var("LAZYAICODE_CODEX_ACP");
     }
 
+    #[cfg(unix)]
     const FAKE_AGENT: &str = r#"#!/usr/bin/env python3
 import sys, json
 def out(o): sys.stdout.write(json.dumps(o)+"\n"); sys.stdout.flush()

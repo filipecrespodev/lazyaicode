@@ -390,6 +390,7 @@ pub async fn probe(bin: &std::path::Path, claude_dir: &std::path::Path, cwd: &st
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::sync::mpsc;
 
     #[test]

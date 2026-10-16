@@ -303,7 +303,7 @@ fn ci() -> Result<(), String> {
     run(cargo().args(["fmt", "--all", "--check"]))?;
     layers::check()?;
     i18n()?;
-    run(cargo().args(["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]))?;
+    run(cargo().args(["clippy", "--workspace", "--all-targets", "--keep-going", "--", "-D", "warnings"]))?;
     run(cargo().args(["test", "--workspace"]))?;
     wasm()
 }
