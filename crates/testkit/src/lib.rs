@@ -18,6 +18,7 @@ pub fn init_repo(dir: &Path) {
     git(dir, &["init", "-q", "-b", "main"]);
     git(dir, &["config", "user.email", "t@example.com"]);
     git(dir, &["config", "user.name", "T"]);
+    git(dir, &["config", "core.autocrlf", "false"]);
     std::fs::write(dir.join("a.txt"), "um\n").unwrap();
     git(dir, &["add", "."]);
     git(dir, &["commit", "-q", "-m", "first"]);
