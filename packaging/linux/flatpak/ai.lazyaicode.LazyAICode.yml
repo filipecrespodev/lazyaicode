@@ -1,4 +1,7 @@
-# Flatpak do LazyAICode, compilado do código-fonte com o SDK de Rust.
+# Flatpak do LazyAICode com os binários de `target/release` (o SDK de Rust do
+# Flathub fica atrás do rustc que o egui pede). `cargo xtask dist flatpak`
+# compila antes; à mão:
+#   cargo build --release -p lazyaicode -p lazyaicode-cli
 #   flatpak-builder --user --install --force-clean build packaging/linux/flatpak/ai.lazyaicode.LazyAICode.yml
 # O agente (claude/codex/gemini) e o git vêm do sistema: --talk-name e a
 # permissão de host abaixo deixam o app rodá-los fora da sandbox via flatpak-spawn.
@@ -6,8 +9,6 @@ app-id: ai.lazyaicode.LazyAICode
 runtime: org.freedesktop.Platform
 runtime-version: "24.08"
 sdk: org.freedesktop.Sdk
-sdk-extensions:
-  - org.freedesktop.Sdk.Extension.rust-stable
 command: lazyaicode
 finish-args:
   - --share=ipc
@@ -18,23 +19,19 @@ finish-args:
   - --filesystem=home
   - --talk-name=org.freedesktop.Flatpak
   - --talk-name=org.freedesktop.Notifications
-build-options:
-  append-path: /usr/lib/sdk/rust-stable/bin
-  env:
-    CARGO_HOME: /run/build/lazyaicode/cargo
-  build-args:
-    - --share=network
 modules:
   - name: lazyaicode
     buildsystem: simple
     build-commands:
-      - cargo build --release -p lazyaicode -p lazyaicode-cli
-      - install -Dm755 target/release/lazyaicode /app/bin/lazyaicode
-      - install -Dm755 target/release/lazyaicode-cli /app/bin/lazyaicode-cli
-      - install -Dm644 packaging/linux/lazyaicode.desktop /app/share/applications/ai.lazyaicode.LazyAICode.desktop
+      - install -Dm755 lazyaicode /app/bin/lazyaicode
+      - install -Dm755 lazyaicode-cli /app/bin/lazyaicode-cli
+      - install -Dm644 lazyaicode.desktop /app/share/applications/ai.lazyaicode.LazyAICode.desktop
       - sed -i 's/^Icon=.*/Icon=ai.lazyaicode.LazyAICode/' /app/share/applications/ai.lazyaicode.LazyAICode.desktop
-      - install -Dm644 assets/icons/128x128.png /app/share/icons/hicolor/128x128/apps/ai.lazyaicode.LazyAICode.png
-      - install -Dm644 packaging/linux/ai.lazyaicode.LazyAICode.metainfo.xml /app/share/metainfo/ai.lazyaicode.LazyAICode.metainfo.xml
+      - install -Dm644 128x128.png /app/share/icons/hicolor/128x128/apps/ai.lazyaicode.LazyAICode.png
+      - install -Dm644 ai.lazyaicode.LazyAICode.metainfo.xml /app/share/metainfo/ai.lazyaicode.LazyAICode.metainfo.xml
     sources:
-      - type: dir
-        path: ../../..
+      - { type: file, path: ../../../target/release/lazyaicode }
+      - { type: file, path: ../../../target/release/lazyaicode-cli }
+      - { type: file, path: ../lazyaicode.desktop }
+      - { type: file, path: ../../../assets/icons/128x128.png }
+      - { type: file, path: ../ai.lazyaicode.LazyAICode.metainfo.xml }

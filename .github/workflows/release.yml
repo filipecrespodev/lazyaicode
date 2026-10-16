@@ -24,14 +24,6 @@ jobs:
           curl -fsSL -o /usr/local/bin/appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x /usr/local/bin/appimagetool
       - run: cargo xtask dist tarball && cargo xtask dist deb && cargo xtask dist rpm && cargo xtask dist appimage
-      - run: |
-          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-          flatpak install --user -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08 org.freedesktop.Sdk.Extension.rust-stable//24.08
-          cargo xtask dist flatpak
-      # o agente WSL vai no MSI
-      - run: cargo build --release -p lazyaicode-wsl-agent
-      - uses: actions/upload-artifact@v4
-        with: { name: wsl-agent, path: target/release/lazyaicode-agent }
       - uses: actions/upload-artifact@v4
         with:
           name: linux
@@ -40,14 +32,32 @@ jobs:
             packaging/out/*.deb
             packaging/out/*.rpm
             packaging/out/*.AppImage
-            packaging/out/*.flatpak
+      # em passo próprio: um flatpak quebrado não derruba os outros pacotes
+      - run: |
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
+          cargo xtask dist flatpak
+      - uses: actions/upload-artifact@v4
+        with: { name: flatpak, path: packaging/out/*.flatpak }
+
+  # o agente WSL vai no MSI; job à parte para o Windows não esperar o Linux inteiro
+  wsl-agent:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+      - run: cargo build --release -p lazyaicode-wsl-agent
+      - uses: actions/upload-artifact@v4
+        with: { name: wsl-agent, path: target/release/lazyaicode-agent }
 
   macos:
     strategy:
       matrix:
         include:
           - { runner: macos-latest, arch: aarch64 }
-          - { runner: macos-13, arch: x86_64 }
+          # o macos-13 foi aposentado: o job ficava na fila para sempre
+          - { runner: macos-15-intel, arch: x86_64 }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -80,7 +90,7 @@ jobs:
             packaging/out/*.tar.gz
 
   windows:
-    needs: linux
+    needs: wsl-agent
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -105,7 +115,8 @@ jobs:
       - uses: vmactions/freebsd-vm@v1
         with:
           usesh: true
-          prepare: pkg install -y rust git pkgconf libxkbcommon wayland
+          # gmake e perl: o openssl-sys compila o OpenSSL embutido
+          prepare: pkg install -y rust git pkgconf libxkbcommon wayland gmake perl5
           run: cargo run -p xtask -- dist tarball
       - uses: actions/upload-artifact@v4
         with: { name: freebsd, path: packaging/out/*.tar.gz }
@@ -123,17 +134,46 @@ jobs:
         with: { name: web, path: "lazyaicode-web-*.tar.gz" }
 
   publish:
+    # publica o que ficou pronto: um alvo quebrado não esconde os downloads dos outros
     needs: [linux, macos, windows, freebsd, web]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/download-artifact@v4
         with: { path: out, merge-multiple: true }
-      - run: cd out && sha256sum * > SHA256SUMS
+      - run: rm -f out/lazyaicode-agent && cd out && sha256sum * > SHA256SUMS
+      - name: tabela de downloads
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          link() { for f in out/$1; do [ -e "$f" ] && printf '[%s](https://github.com/%s/releases/download/%s/%s)<br>' "${f#out/}" "$REPO" "$TAG" "${f#out/}"; done; true; }
+          row() { l=$(link "$2"); printf '| %s | %s |\n' "$1" "${l:-—}"; }
+          {
+            echo "## Downloads"
+            echo
+            echo "| Plataforma | Arquivo |"
+            echo "|---|---|"
+            row "Windows (instalador)" "*.msi"
+            row "Windows (zip)" "*windows*.zip"
+            row "macOS Apple Silicon" "*aarch64*.dmg"
+            row "macOS Intel" "*x86_64*.dmg"
+            row "macOS (tar.gz)" "*macos*.tar.gz"
+            row "Linux AppImage" "*.AppImage"
+            row "Linux Flatpak" "*.flatpak"
+            row "Debian / Ubuntu" "*.deb"
+            row "Fedora / openSUSE" "*.rpm"
+            row "Linux (tar.gz)" "*linux*.tar.gz"
+            row "FreeBSD" "*freebsd*.tar.gz"
+            row "Web (wasm)" "lazyaicode-web-*.tar.gz"
+            echo
+            echo "Linux e WSL: \`curl -fsSL https://raw.githubusercontent.com/$REPO/main/scripts/install.sh | sh\`"
+            echo
+            echo "Somas em \`SHA256SUMS\`."
+          } > notes.md
+          cat notes.md
       - uses: softprops/action-gh-release@v2
         with:
           name: LazyAICode ${{ github.ref_name }}
           files: out/*
-          body: |
-            Pacotes abaixo (MSI, DMG, AppImage, Flatpak, deb, rpm, tarballs e a versão web).
-            Linux e WSL: `curl -fsSL https://raw.githubusercontent.com/filipecrespodev/lazyaicode/main/scripts/install.sh | sh`
-            Somas em `SHA256SUMS`.
+          body_path: notes.md

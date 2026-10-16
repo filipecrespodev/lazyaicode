@@ -75,7 +75,10 @@ pub fn run(format: &str) -> Result<(), String> {
             build_release()?;
             script("linux/appimage.sh")
         }
-        "flatpak" => script("linux/flatpak.sh"),
+        "flatpak" => {
+            build_release()?;
+            script("linux/flatpak.sh")
+        }
         "dmg" => {
             build_release()?;
             script("macos/dmg.sh")
