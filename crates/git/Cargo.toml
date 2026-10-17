@@ -21,6 +21,7 @@ base64.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+lazyaicode-testkit.workspace = true
 
 [lints]
 workspace = true

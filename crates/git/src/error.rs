@@ -6,6 +6,9 @@ pub enum GitCommandError {
     #[error("repositório não encontrado ou inválido: {path}")]
     RepoNotFound { path: String },
 
+    #[error("commit não encontrado: {rev}")]
+    CommitNotFound { rev: String },
+
     #[error("erro do git ({code}/{class}): {message}")]
     Libgit2 { code: String, class: String, message: String },
 

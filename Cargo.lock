@@ -2610,6 +2610,7 @@ dependencies = [
  "dirs",
  "git2",
  "lazyaicode-platform",
+ "lazyaicode-testkit",
  "parking_lot",
  "reqwest",
  "serde",

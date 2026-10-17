@@ -847,6 +847,12 @@ fn git_repo(sw: &mut Sweep) {
     let cd = sw.ok("git.diff.commit", json!({"repoId": rid, "sha": h1}));
     sw.check(cd.to_string().contains("w.txt"), "git.diff.commit");
     sw.ok("git.diff.range", json!({"repoId": rid, "fromSha": first, "toSha": h1}));
+    // revisões além do hash completo: HEAD, curto, branch
+    let byref = sw.ok("git.diff.commit", json!({"repoId": rid, "sha": "HEAD~3"}));
+    sw.check(byref.is_object(), "git.diff.commit resolve HEAD~3");
+    sw.ok("git.diff.commit", json!({"repoId": rid, "sha": &h1[..7.min(h1.len())]}));
+    let e = sw.err("git.diff.commit", json!({"repoId": rid, "sha": "nao-existe"}), "commit inexistente");
+    sw.check(e.is_some_and(|f| f.message.contains("commit não encontrado")), "erro nomeia o commit, não o repositório");
     let fc = sw.ok("git.diff.file-content", json!({"repoId": rid, "sha": first, "path": "a.txt"}));
     sw.check(fc == json!("dW0K"), format!("git.diff.file-content (base64 de \"um\\n\"): {}", short(&fc)));
     sw.ok("git.diff.file-content", json!({"repoId": rid, "path": "a.txt"}));

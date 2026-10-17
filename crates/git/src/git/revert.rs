@@ -34,7 +34,7 @@ pub fn revert_commit(repo: &git2::Repository, sha: &str, mainline: Option<u32>) 
     if repo.state() != git2::RepositoryState::Clean {
         return Err(GitCommandError::Internal("conclua ou aborte a operação em andamento antes do revert".into()));
     }
-    let oid = git2::Oid::from_str(sha).map_err(|_| GitCommandError::RepoNotFound { path: sha.to_string() })?;
+    let oid = super::commit_oid(repo, sha)?;
     let commit = repo.find_commit(oid)?;
     let parents = commit.parent_count();
     let mainline = match mainline {

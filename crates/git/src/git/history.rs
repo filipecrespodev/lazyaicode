@@ -59,13 +59,13 @@ pub struct FileHistoryPage {
     pub next_cursor: Option<FileHistoryCursor>,
 }
 
-fn parse_oid(sha: &str) -> Result<git2::Oid, GitCommandError> {
-    git2::Oid::from_str(sha).map_err(|_| GitCommandError::RepoNotFound { path: sha.to_string() })
+fn parse_oid(repo: &git2::Repository, sha: &str) -> Result<git2::Oid, GitCommandError> {
+    super::commit_oid(repo, sha)
 }
 
 fn start_commit<'r>(repo: &'r git2::Repository, sha: Option<&str>) -> Result<git2::Commit<'r>, GitCommandError> {
     match sha.filter(|s| !s.is_empty()) {
-        Some(sha) => Ok(repo.find_commit(parse_oid(sha)?)?),
+        Some(sha) => Ok(repo.find_commit(parse_oid(repo, sha)?)?),
         None => Ok(repo.head()?.peel_to_commit()?),
     }
 }
@@ -136,7 +136,7 @@ pub fn file_history(repo: &git2::Repository, query: &FileHistoryQuery) -> Result
     let mut path = match &query.cursor {
         Some(c) => {
             for sha in &c.frontier {
-                walk.push(&repo.find_commit(parse_oid(sha)?)?);
+                walk.push(&repo.find_commit(parse_oid(repo, sha)?)?);
             }
             c.path.clone()
         }
@@ -224,7 +224,7 @@ pub fn commit_file_diff(
     path: &str,
     old_path: Option<&str>,
 ) -> Result<Option<FileDiff>, GitCommandError> {
-    let commit = repo.find_commit(parse_oid(sha)?)?;
+    let commit = repo.find_commit(parse_oid(repo, sha)?)?;
     let tree = commit.tree()?;
     let parent_tree = commit.parent(0).ok().map(|p| p.tree()).transpose()?;
 
@@ -242,8 +242,8 @@ pub fn commit_file_diff(
 
 /// `git diff <from_sha> <to_sha>`: tree against tree, whatever lies between.
 pub fn tree_diff(repo: &git2::Repository, from_sha: &str, to_sha: &str) -> Result<CommitDiff, GitCommandError> {
-    let from = repo.find_commit(parse_oid(from_sha)?)?.tree()?;
-    let to = repo.find_commit(parse_oid(to_sha)?)?.tree()?;
+    let from = repo.find_commit(parse_oid(repo, from_sha)?)?.tree()?;
+    let to = repo.find_commit(parse_oid(repo, to_sha)?)?.tree()?;
     let mut d = repo.diff_tree_to_tree(Some(&from), Some(&to), Some(&mut diff::full_context_opts()))?;
     d.find_similar(Some(git2::DiffFindOptions::new().renames(true)))?;
     Ok(CommitDiff { sha: to_sha.to_string(), parent_shas: vec![from_sha.to_string()], files: diff::diff_to_file_list(&d)? })
@@ -457,7 +457,7 @@ pub fn blame(
         let last = (h.start_line + h.line_count - 1).min(end);
         chunk.hunks.push(BlameHunk { start_line: first, line_count: last - first + 1, ..h.clone() });
         if seen.insert(h.sha.as_str()) {
-            chunk.commits.push(to_commit_node(&repo.find_commit(parse_oid(&h.sha)?)?));
+            chunk.commits.push(to_commit_node(&repo.find_commit(parse_oid(repo, &h.sha)?)?));
         }
     }
     Ok(chunk)

@@ -48,7 +48,7 @@ pub(crate) fn full_context_opts() -> git2::DiffOptions {
 }
 
 pub fn commit_diff(repo: &git2::Repository, sha: &str) -> Result<CommitDiff, GitCommandError> {
-    let oid = git2::Oid::from_str(sha).map_err(|_| GitCommandError::RepoNotFound { path: sha.to_string() })?;
+    let oid = super::commit_oid(repo, sha)?;
     let commit = repo.find_commit(oid)?;
     let new_tree = commit.tree()?;
     let old_tree = commit.parent(0).ok().map(|p| p.tree()).transpose()?;
@@ -67,8 +67,8 @@ pub fn commit_diff(repo: &git2::Repository, sha: &str) -> Result<CommitDiff, Git
 /// to `git diff from_sha^..to_sha`, regardless of which commits in between
 /// were individually toggled on/off in a multi-select.
 pub fn range_diff(repo: &git2::Repository, from_sha: &str, to_sha: &str) -> Result<CommitDiff, GitCommandError> {
-    let from_oid = git2::Oid::from_str(from_sha).map_err(|_| GitCommandError::RepoNotFound { path: from_sha.to_string() })?;
-    let to_oid = git2::Oid::from_str(to_sha).map_err(|_| GitCommandError::RepoNotFound { path: to_sha.to_string() })?;
+    let from_oid = super::commit_oid(repo, from_sha)?;
+    let to_oid = super::commit_oid(repo, to_sha)?;
     let from_commit = repo.find_commit(from_oid)?;
     let to_commit = repo.find_commit(to_oid)?;
 
@@ -111,7 +111,7 @@ pub fn workdir_diff(repo: &git2::Repository, staged: bool) -> Result<CommitDiff,
 pub fn read_file_base64(repo: &git2::Repository, sha: Option<&str>, path: &str) -> Result<String, GitCommandError> {
     let bytes = match sha.filter(|s| !s.is_empty()) {
         Some(sha) => {
-            let oid = git2::Oid::from_str(sha).map_err(|_| GitCommandError::RepoNotFound { path: sha.to_string() })?;
+            let oid = super::commit_oid(repo, sha)?;
             let tree = repo.find_commit(oid)?.tree()?;
             let entry = tree.get_path(std::path::Path::new(path))?;
             repo.find_blob(entry.id())?.content().to_vec()

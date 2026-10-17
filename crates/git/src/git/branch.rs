@@ -60,7 +60,7 @@ pub fn create_branch(
 /// graph: a remote-only ref becomes a new local branch, and re-clicking an
 /// existing local branch at a different commit resets it there.
 pub fn checkout_at(repo: &git2::Repository, name: &str, target_sha: &str, remote_name: Option<&str>) -> Result<(), GitCommandError> {
-    let oid = git2::Oid::from_str(target_sha).map_err(|_| GitCommandError::RepoNotFound { path: target_sha.to_string() })?;
+    let oid = super::commit_oid(repo, target_sha)?;
     let commit = repo.find_commit(oid)?;
 
     match repo.find_branch(name, git2::BranchType::Local) {
@@ -84,7 +84,7 @@ pub fn checkout_at(repo: &git2::Repository, name: &str, target_sha: &str, remote
 /// HEAD shows up as staged changes). The caller is expected to only allow
 /// this when the working directory is clean.
 pub fn reset_to_commit(repo: &git2::Repository, sha: &str, hard: bool) -> Result<(), GitCommandError> {
-    let oid = git2::Oid::from_str(sha).map_err(|_| GitCommandError::RepoNotFound { path: sha.to_string() })?;
+    let oid = super::commit_oid(repo, sha)?;
     let object = repo.find_object(oid, None)?;
     let reset_type = if hard { git2::ResetType::Hard } else { git2::ResetType::Soft };
     repo.reset(&object, reset_type, None)?;
@@ -127,7 +127,7 @@ pub fn sync_branch_to_commit(repo: &mut git2::Repository, target_sha: &str) -> R
 }
 
 pub fn checkout_detached(repo: &git2::Repository, sha: &str) -> Result<(), GitCommandError> {
-    let oid = git2::Oid::from_str(sha).map_err(|_| GitCommandError::RepoNotFound { path: sha.to_string() })?;
+    let oid = super::commit_oid(repo, sha)?;
     let commit = repo.find_commit(oid)?;
     repo.checkout_tree(commit.as_object(), None)?;
     repo.set_head_detached(oid)?;

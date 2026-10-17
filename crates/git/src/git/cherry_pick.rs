@@ -12,7 +12,7 @@ pub struct CherryPickResult {
 }
 
 pub fn cherry_pick(repo: &mut git2::Repository, sha: &str, create_commit: bool) -> Result<CherryPickResult, GitCommandError> {
-    let oid = git2::Oid::from_str(sha).map_err(|_| GitCommandError::RepoNotFound { path: sha.to_string() })?;
+    let oid = super::commit_oid(repo, sha)?;
     let commit = repo.find_commit(oid)?;
 
     let mut opts = git2::CherrypickOptions::new();
