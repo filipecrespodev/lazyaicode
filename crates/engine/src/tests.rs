@@ -34,6 +34,8 @@ fn every_command_is_well_formed_and_unique() {
         assert!(lazyaicode_protocol::valid_command_id(&c.id), "id inválido: {}", c.id);
         assert!(ids.insert(c.id.clone()), "id repetido: {}", c.id);
         assert!(!c.label.is_empty() && !c.group.is_empty(), "{}", c.id);
+        // a paleta mostra o rótulo: um id no lugar dele não é rótulo
+        assert!(c.label.contains(' ') || !c.label.contains('.'), "{}: rótulo parece id: {}", c.id, c.label);
         let mut names = std::collections::HashSet::new();
         for p in &c.params {
             assert!(names.insert(p.name.clone()), "{}: parâmetro repetido {}", c.id, p.name);

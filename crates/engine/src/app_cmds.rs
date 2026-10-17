@@ -78,19 +78,19 @@ pub fn register(r: &mut Registry) {
     for (field, id, ty) in SETTINGS_KEYS {
         let cid = format!("settings.{id}");
         let param = if ty == "bool" { p::b("value") } else { p::s("value") };
-        r.add(Spec::new(&cid, &format!("settings.{field}"), "settings").params(vec![param]).doc("Muda uma preferência.").run(
-            move |e, v| async move {
-                let value = v.get("value").cloned().unwrap_or(Value::Null);
-                let mut s = e.core.store.lock();
-                let mut obj = serde_json::to_value(&s.state.settings).map_err(|e| EngineError::Failed(e.to_string()))?;
-                obj[field] = value;
-                s.state.settings = serde_json::from_value(obj).map_err(|e| EngineError::BadParams(e.to_string()))?;
-                s.save()?;
-                drop(s);
-                e.emit(events::STATE_CHANGED, json!({ "what": "settings" }));
-                Ok(Value::Null)
-            },
-        ));
+        // rótulo legível na paleta ("Set default model"), como os outros comandos do motor
+        let label = format!("Set {}", field.replace('_', " "));
+        r.add(Spec::new(&cid, &label, "settings").params(vec![param]).doc("Muda uma preferência.").run(move |e, v| async move {
+            let value = v.get("value").cloned().unwrap_or(Value::Null);
+            let mut s = e.core.store.lock();
+            let mut obj = serde_json::to_value(&s.state.settings).map_err(|e| EngineError::Failed(e.to_string()))?;
+            obj[field] = value;
+            s.state.settings = serde_json::from_value(obj).map_err(|e| EngineError::BadParams(e.to_string()))?;
+            s.save()?;
+            drop(s);
+            e.emit(events::STATE_CHANGED, json!({ "what": "settings" }));
+            Ok(Value::Null)
+        }));
     }
     r.add(
         Spec::new("prefs.get", "Read a preference", "settings")
