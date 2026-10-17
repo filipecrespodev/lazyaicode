@@ -260,7 +260,7 @@ impl Engine {
             .as_deref()
             .and_then(|id| s.state.workspace(id))
             .map(workspace::claude_dir)
-            .unwrap_or_else(lazyaicode_agent::claude::default_claude_dir)
+            .unwrap_or_else(|| lazyaicode_agent::claude::resolve_active(None))
     }
 
     /// Conta de uma thread: a sessão só pode continuar no diretório onde

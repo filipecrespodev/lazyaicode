@@ -139,7 +139,7 @@ pub fn register(r: &mut Registry) {
         Spec::new("account.status", "Account login", "account")
             .params(vec![p::opath("claudeDir")])
             .read_only()
-            .doc("Login de uma conta (diretório Claude); sem `claudeDir`, `~/.claude`.")
+            .doc("Login de uma conta (diretório Claude); sem `claudeDir`, a ativa (`$CLAUDE_CONFIG_DIR` ou `~/.claude`).")
             .run(|_, v| async move {
                 #[derive(Deserialize)]
                 #[serde(rename_all = "camelCase")]
@@ -147,7 +147,7 @@ pub fn register(r: &mut Registry) {
                     claude_dir: Option<String>,
                 }
                 let p: P = parse(v)?;
-                let dir = p.claude_dir.filter(|d| !d.is_empty()).map(PathBuf::from).unwrap_or_else(claude::default_claude_dir);
+                let dir = p.claude_dir.filter(|d| !d.is_empty()).map(PathBuf::from).unwrap_or_else(|| claude::resolve_active(None));
                 blocking(move || Ok(claude::auth_status(&dir))).await
             }),
     );
@@ -528,6 +528,14 @@ fn double_option<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<
     Option::<String>::deserialize(d).map(Some)
 }
 
+/// A conta guardada no workspace: sem `claudeDir`, a ativa
+/// (`$CLAUDE_CONFIG_DIR` ou `~/.claude`), a mesma que a tela sugere; `~/.claude`
+/// (ou `""`) fica `None`.
+fn account_to_store(claude_dir: Option<String>) -> Option<String> {
+    let d = claude_dir.unwrap_or_else(|| claude::resolve_active(None).to_string_lossy().to_string());
+    Some(d).filter(|d| !d.is_empty() && Path::new(d) != claude::default_claude_dir())
+}
+
 pub(crate) fn create_workspace(s: &mut Store, path: &str, name: Option<String>, claude_dir: Option<String>) -> Result<Workspace> {
     let p = PathBuf::from(path);
     if !p.is_dir() {
@@ -539,7 +547,7 @@ pub(crate) fn create_workspace(s: &mut Store, path: &str, name: Option<String>, 
             .filter(|n| !n.trim().is_empty())
             .unwrap_or_else(|| p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or(path.to_string())),
         path: path.to_string(),
-        claude_dir: claude_dir.filter(|d| !d.is_empty() && *d != claude::default_claude_dir()),
+        claude_dir: account_to_store(claude_dir),
         ignored_paths: vec![],
         created_at: store::now(),
     };
