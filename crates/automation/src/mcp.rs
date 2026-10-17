@@ -298,8 +298,8 @@ fn summarize(tr: &Transcript, status: &str) -> Value {
                 "summary": lazyaicode_doc::transcript::tool_summary(name, input),
                 "error": r.as_ref().is_some_and(|r| r.is_error),
             })),
-            Item::Permission { request_id, tool_name, input, decided: None, suggestions, .. } => {
-                permission = json!({ "requestId": request_id, "toolName": tool_name, "input": input, "suggestions": suggestions });
+            Item::Permission { request_id, tool_name, input, tool_use_id, decided: None, suggestions, .. } => {
+                permission = json!({ "requestId": request_id, "toolName": tool_name, "input": input, "toolUseId": tool_use_id, "suggestions": suggestions });
             }
             Item::Result { duration_ms, cost_usd, is_error, text: t, .. } => {
                 result = json!({ "durationMs": duration_ms, "costUsd": cost_usd, "isError": is_error, "error": t });

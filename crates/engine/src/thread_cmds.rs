@@ -267,7 +267,18 @@ pub fn register(r: &mut Registry) {
                     tool_use_id: Option<String>,
                     updated_permissions: Option<Vec<Value>>,
                 }
-                let p: P = parse(v)?;
+                let mut p: P = parse(v)?;
+                // o CLI só aceita a resposta com o `toolUseID` (e a entrada) do pedido: quem
+                // manda só id + requestId + allow (CLI, MCP) recebe os do pedido pendente
+                let pending = e.core.permissions.lock().get(&p.id).filter(|r| r["requestId"] == p.request_id.as_str()).cloned();
+                if let Some(r) = pending {
+                    if p.tool_use_id.is_none() {
+                        p.tool_use_id = r["toolUseId"].as_str().map(str::to_string);
+                    }
+                    if p.input.is_null() {
+                        p.input = r["input"].clone();
+                    }
+                }
                 if e.core.acp.is_running(&p.id) {
                     e.core.acp.respond_permission(&p.id, &p.request_id, p.allow, p.updated_permissions.is_some()).await?;
                 } else {
@@ -276,8 +287,21 @@ pub fn register(r: &mut Registry) {
                         .respond_permission(&p.id, &p.request_id, p.allow, p.input, p.message, p.tool_use_id, p.updated_permissions)
                         .await?;
                 }
+                e.core.permissions.lock().remove(&p.id);
                 e.set_status(&p.id, Status::Running);
                 Ok(Value::Null)
+            }),
+    );
+    r.add(
+        Spec::new("thread.pending-permission", "Pending permission request", "thread")
+            .params(vec![p::s("id")])
+            .read_only()
+            .returns("{requestId, toolName, input, toolUseId, suggestions} ou null")
+            .doc("O pedido de permissão que o agente da thread espera responder (status `awaiting`), para quem não acompanha os eventos: responda com `thread.respond-permission`.")
+            .run(|e, v| async move {
+                let Id { id } = parse(v)?;
+                e.thread(&id)?;
+                Ok(e.core.permissions.lock().get(&id).cloned().unwrap_or(Value::Null))
             }),
     );
     r.add(Spec::new("thread.set-model", "Change model", "thread").params(vec![p::s("id"), p::s("model")]).run(|e, v| async move {

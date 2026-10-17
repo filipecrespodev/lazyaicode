@@ -120,6 +120,8 @@ pub(crate) struct Core {
     pub terminals: terminal::Terminals,
     /// estado de execução por thread
     pub status: Mutex<HashMap<String, Status>>,
+    /// pedido de permissão aberto por thread (`thread.pending-permission`)
+    pub permissions: Mutex<HashMap<String, Value>>,
     pub data_dir: PathBuf,
     pub sessions: Mutex<sessions::SessionCache>,
     /// resposta da sondagem do CLI por (conta, pasta), com o instante
@@ -169,6 +171,7 @@ impl Engine {
             provider_status: Mutex::new(HashMap::new()),
             terminals: terminal::Terminals::default(),
             status: Mutex::new(HashMap::new()),
+            permissions: Mutex::new(HashMap::new()),
             data_dir,
             sessions: Mutex::new(sessions::SessionCache::default()),
             capabilities: Mutex::new(HashMap::new()),

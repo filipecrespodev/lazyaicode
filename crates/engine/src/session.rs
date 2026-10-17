@@ -38,6 +38,7 @@ impl Engine {
             match out {
                 AgentOut::Message(msg) => app.on_agent_message(tid, msg),
                 AgentOut::Exit { code, stderr } => {
+                    app.core.permissions.lock().remove(tid);
                     let running = app.status_of(tid) != Status::Idle;
                     let failed = code.is_some_and(|c| c != 0) && running;
                     app.set_status(tid, if failed { Status::Error } else { Status::Idle });
@@ -78,10 +79,22 @@ impl Engine {
                 }) {
                     self.emit(events::THREAD_UPDATED, json!(self.view(&t)));
                 }
+                self.core.permissions.lock().remove(tid);
                 let failed = msg["is_error"].as_bool().unwrap_or(false);
                 next_status = Some(if failed { Status::Error } else { Status::Idle });
             }
             (Some("control_request"), _) if msg["request"]["subtype"] == "can_use_tool" => {
+                let r = &msg["request"];
+                self.core.permissions.lock().insert(
+                    tid.to_string(),
+                    json!({
+                        "requestId": msg["request_id"],
+                        "toolName": r["tool_name"],
+                        "input": r["input"],
+                        "toolUseId": r["tool_use_id"],
+                        "suggestions": r["permission_suggestions"],
+                    }),
+                );
                 next_status = Some(Status::Awaiting);
             }
             _ => {}
