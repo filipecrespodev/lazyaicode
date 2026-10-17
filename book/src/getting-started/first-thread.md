@@ -28,6 +28,9 @@
    leva à janela dela. `Ctrl+Shift+T` vai direto para a próxima que espera
    você ou terminou sem ser lida. Fechar a janela principal mantém as outras;
    `Ctrl+Q` fecha todas. Na versão web, os workspaces seguem em abas.
+7. **Versões novas.** O app consulta o último release ao abrir (e a cada
+   6 h) e mostra um botão na barra de título quando há versão nova; em
+   **Configurações → Sobre** dá para verificar na hora ou desligar o aviso.
 
 Tudo isso também é comando: `Ctrl+K` abre a paleta com os mais de 500
 comandos do app, e os mesmos rodam pela [CLI](../automation/cli.md), pelo

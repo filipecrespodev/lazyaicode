@@ -627,6 +627,9 @@ fn table(ctx: &Ctx) -> Vec<(&'static str, Value, Expect)> {
         ("ui.language.next", e(), Y),
         ("ui.language.pt", e(), Y),
         // ---------- janela ----------
+        // a versão nova vem do "último release" (um servidor local: v99.0.0)
+        ("ui.app.check-update", e(), Y),
+        (CHECK_INSPECT, json!({"path": "/update/newer", "equals": true}), Y),
         ("ui.window.fullscreen", e(), Y),
         ("ui.window.minimize", e(), Y),
         ("ui.window.maximize", e(), Y),
@@ -691,6 +694,8 @@ fn every_screen_command_runs_end_to_end() {
     let png_b64 = base64::engine::general_purpose::STANDARD.encode(std::fs::read(&png).unwrap());
 
     lazyaicode_engine::workspace::init_platform();
+    // nada de rede: o "último release" vem de um servidor local
+    std::env::set_var("LAZYAICODE_UPDATE_URL", lazyaicode_testkit::fakes::fake_release_server("v99.0.0"));
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
     let engine = {
         let _g = rt.enter();
@@ -715,7 +720,7 @@ fn every_screen_command_runs_end_to_end() {
     let ctx = egui::Context::default();
     let _ = wake.set(ctx.clone());
     lazyaicode_ui_egui::install(&ctx);
-    let client = local::LocalClient::new(engine.clone(), rt.handle().clone(), wake);
+    let client = local::LocalClient::new(engine.clone(), rt.handle().clone(), wake, egui::ViewportId::ROOT);
     let inbox = Inbox::default();
     let host = TestHost { inbox: inbox.clone(), png: png.clone(), folder: ws.clone() };
     let app = LazyApp::new(Box::new(client), Box::new(host), inbox);
@@ -827,19 +832,23 @@ fn each_workspace_opens_in_its_own_window() {
     std::fs::write(&gitconfig, "[user]\n\tname = Demo\n\temail = demo@example.com\n[init]\n\tdefaultBranch = main\n").unwrap();
     std::env::set_var("GIT_CONFIG_GLOBAL", &gitconfig);
     std::env::set_var("GIT_CONFIG_NOSYSTEM", "1");
-    let (ws1, ws2) = (root.join("um"), root.join("dois"));
+    let (ws1, ws2, ws3) = (root.join("um"), root.join("dois"), root.join("tres"));
     lazyaicode_testkit::init_repo(&ws1.join("app"));
     lazyaicode_testkit::init_repo(&ws2.join("api"));
+    lazyaicode_testkit::init_repo(&ws3.join("lib"));
     let png = root.join("p.png");
     image::RgbaImage::from_pixel(2, 2, image::Rgba([0, 0, 0, 255])).save(&png).unwrap();
 
     lazyaicode_engine::workspace::init_platform();
+    // nada de rede: o "último release" vem de um servidor local
+    std::env::set_var("LAZYAICODE_UPDATE_URL", lazyaicode_testkit::fakes::fake_release_server("v99.0.0"));
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
     let engine = {
         let _g = rt.enter();
         Engine::new(EngineOpts { data_dir: Some(root.join("data")), ephemeral: false })
     };
     let (w1, w2, t2) = rt.block_on(async {
+        engine.run("workspace.create", json!({"path": ws3.to_string_lossy()})).await.unwrap();
         let a = engine.run("workspace.create", json!({"path": ws1.to_string_lossy()})).await.unwrap();
         let b = engine.run("workspace.create", json!({"path": ws2.to_string_lossy()})).await.unwrap();
         let projects = engine.run("project.list", json!({"workspaceId": b["id"]})).await.unwrap();
@@ -856,12 +865,16 @@ fn each_workspace_opens_in_its_own_window() {
     lazyaicode_ui_egui::install(&ctx);
     let inbox = Inbox::default();
     let host = TestHost { inbox: inbox.clone(), png: png.clone(), folder: ws1.clone() };
-    let mut app = LazyApp::new(Box::new(local::LocalClient::new(engine.clone(), rt.handle().clone(), wake.clone())), Box::new(host), inbox);
+    let mut app = LazyApp::new(
+        Box::new(local::LocalClient::new(engine.clone(), rt.handle().clone(), wake.clone(), egui::ViewportId::ROOT)),
+        Box::new(host),
+        inbox,
+    );
     let (e2, h2, wk2, png2, f2) = (engine.clone(), rt.handle().clone(), wake.clone(), png.clone(), ws1.clone());
-    app.set_window_factory(Box::new(move || {
+    app.set_window_factory(Box::new(move |vid| {
         let inbox = Inbox::default();
         lazyaicode_ui_egui::NewWindow {
-            client: Box::new(local::LocalClient::new(e2.clone(), h2.clone(), wk2.clone())),
+            client: Box::new(local::LocalClient::new(e2.clone(), h2.clone(), wk2.clone(), vid)),
             host: Box::new(TestHost { inbox: inbox.clone(), png: png2.clone(), folder: f2.clone() }),
             inbox,
             builder: egui::ViewportBuilder::default().with_title("LazyAICode"),
@@ -918,6 +931,37 @@ fn each_workspace_opens_in_its_own_window() {
     // na próxima abertura, os dois vêm marcados
     let prefs = h.rt.block_on(h.engine.run("prefs.get", json!({}))).unwrap();
     assert_eq!(prefs["ui.openWorkspaces"], json!([w1, w2]), "{prefs}");
+
+    // ---------- a principal escondida (minimizada, coberta, outra área de
+    // trabalho): no Wayland ela não recebe quadros; as outras janelas seguem
+    let child_passes = |h: &mut Harness, n: usize| {
+        for i in 0..n {
+            lazyaicode_ui_egui::windows::offscreen_passes(1000.0 + i as f64 * 0.05);
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let _ = h;
+    };
+    let projects = h.rt.block_on(h.engine.run("project.list", json!({"workspaceId": w2}))).unwrap();
+    h.rt.block_on(h.engine.run("thread.create", json!({"workspaceId": w2, "projectId": projects[0]["id"], "isolated": false}))).unwrap();
+    child_passes(&mut h, 60);
+    assert_eq!(
+        lazyaicode_ui_egui::windows::children_inspect()[0]["threads"],
+        json!(2),
+        "a janela do segundo workspace atualiza sem quadros da principal"
+    );
+    // abrir um terceiro workspace pela janela filha cria a janela dele
+    let w3 = h.rt.block_on(h.engine.run("workspace.list", json!({}))).unwrap()["workspaces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|w| w["id"] != json!(w1) && w["id"] != json!(w2))
+        .unwrap()["id"]
+        .clone();
+    lazyaicode_ui_egui::windows::children_inboxes()[0].push("ui.workspace.open", json!({"id": w3}));
+    child_passes(&mut h, 60);
+    let kids = lazyaicode_ui_egui::windows::children_inspect();
+    assert_eq!(kids.len(), 2, "{kids:?}");
+    assert_eq!(kids[1]["workspace"], w3);
 
     let Harness { rt, engine, .. } = h;
     rt.block_on(engine.shutdown());

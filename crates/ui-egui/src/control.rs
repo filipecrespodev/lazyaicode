@@ -39,11 +39,7 @@ pub fn inspect(app: &LazyApp) -> Value {
             "multi": app.multi_window,
             "child": app.is_child,
             "others": app.eph.other_windows,
-            "children": app.windows.iter().map(|c| json!({
-                "workspace": c.app.data.active_workspace,
-                "selected": c.app.state.selected,
-                "threads": c.app.data.threads.len(),
-            })).collect::<Vec<_>>(),
+            "children": if app.is_child { vec![] } else { crate::windows::children_inspect() },
         },
         "activity": app.data.activity.iter().map(|t| json!({
             "id": t.thread.id,
@@ -52,6 +48,7 @@ pub fn inspect(app: &LazyApp) -> Value {
             "status": t.status,
             "unread": t.thread.unread,
         })).collect::<Vec<_>>(),
+        "update": app.data.update,
         "editingTitle": app.eph.editing_title,
         "toasts": app.toasts.iter().map(|t| t.text.clone()).collect::<Vec<_>>(),
         "errors": app.toasts.iter().filter(|t| t.kind == crate::app::ToastKind::Error).map(|t| t.text.clone()).collect::<Vec<_>>(),

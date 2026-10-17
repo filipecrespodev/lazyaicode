@@ -38,6 +38,8 @@ pub struct Fixture {
     pub repo: PathBuf,
     pub remote: PathBuf,
     pub open_log: PathBuf,
+    /// o "último release" (`v99.0.0`) de um servidor local, para `system.check-update`
+    pub update_url: String,
 }
 
 impl Fixture {
@@ -59,7 +61,8 @@ impl Fixture {
         let ws = root.join("ws");
         let repo = ws.join("app");
         let remote = root.join("remote.git");
-        let fx = Self { root: root.to_path_buf(), home, data, bin, ws, repo, remote, open_log: root.join("open.log") };
+        let update_url = crate::fakes::fake_release_server("v99.0.0");
+        let fx = Self { root: root.to_path_buf(), home, data, bin, ws, repo, remote, open_log: root.join("open.log"), update_url };
         let envs = fx.env();
         let g = |dir: &Path, args: &[&str]| {
             let out =
@@ -110,6 +113,7 @@ impl Fixture {
             ("GIT_CONFIG_GLOBAL".into(), s(&self.home.join(".gitconfig"))),
             ("GIT_CONFIG_NOSYSTEM".into(), "1".into()),
             ("GIT_TERMINAL_PROMPT".into(), "0".into()),
+            ("LAZYAICODE_UPDATE_URL".into(), self.update_url.clone().into()),
             ("LAZYAICODE_DATA_DIR".into(), s(&self.data)),
             ("LAZYAICODE_CLAUDE_BIN".into(), s(&self.bin.join("claude"))),
             ("LAZYAICODE_CODEX_ACP".into(), s(&self.bin.join("codex-acp"))),
@@ -323,6 +327,7 @@ fn engine_and_settings(sw: &mut Sweep) {
         ("settings.default-provider", json!("claude")),
         ("settings.default-skip-permissions", json!(false)),
         ("settings.language", json!("pt")),
+        ("settings.check-updates", json!(false)),
     ] {
         sw.ok(id, json!({"value": val}));
     }
@@ -330,6 +335,7 @@ fn engine_and_settings(sw: &mut Sweep) {
     let st = &v["settings"];
     sw.check(st["default_model"] == "sonnet", format!("settings.default-model: {}", short(&v)));
     sw.check(st["default_permission_mode"] == "acceptEdits", "settings.default-permission-mode");
+    sw.check(st["check_updates"] == json!(false), format!("settings.check-updates: {}", short(st)));
     sw.check(
         st["send_with_modifier"] == json!(true) || st.to_string().contains("modifier"),
         format!("settings.send-with-modifier: {}", short(st)),
@@ -693,6 +699,9 @@ fn providers_and_system(sw: &mut Sweep, ids: &Ids) {
     sw.check(h.is_object(), "system.health");
     let w = sw.ok("system.which", json!({"name": "git"}));
     sw.check(!w.is_null(), "system.which git");
+    // a versão nova vem do "último release" (um servidor local, sem rede: `Fixture::env`)
+    let u = sw.ok("system.check-update", json!({}));
+    sw.check(u["newer"] == json!(true) && u["latest"] == "99.0.0", format!("system.check-update: {}", short(&u)));
     let d = sw.ok("system.data-dir", json!({}));
     sw.check(!s(&d).is_empty() || d.is_object(), "system.data-dir");
     let home = sw.ok("system.home", json!({}));

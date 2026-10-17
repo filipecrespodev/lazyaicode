@@ -861,6 +861,26 @@ fn about(app: &mut LazyApp, ui: &mut egui::Ui) {
         ui.end_row();
     });
     ui.add_space(10.0);
+    if !app.host.is_web() {
+        ui.horizontal(|ui| {
+            if widgets::button(ui, &tk, &format!("{}  {}", icon::ARROWS_CLOCKWISE, t("update.check"))).clicked() {
+                app.check_update(true);
+            }
+            if let Some(u) = app.data.update.as_ref().filter(|u| u["newer"] == true) {
+                ui.label(
+                    RichText::new(lazyaicode_i18n::tf("update.available", &[("version", &u["latest"].as_str().unwrap_or(""))]))
+                        .color(tk.p.accent),
+                );
+            }
+        });
+        if let Some(mut s) = app.data.settings.clone() {
+            if ui.checkbox(&mut s.check_updates, t("update.checkSetting")).changed() {
+                app.data.settings = Some(s);
+                save_settings(app);
+            }
+        }
+        ui.add_space(10.0);
+    }
     ui.hyperlink_to("github.com/filipecrespodev/lazyaicode", "https://github.com/filipecrespodev/lazyaicode");
     let _ = Color32::TRANSPARENT;
 }

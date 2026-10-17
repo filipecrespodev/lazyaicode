@@ -80,6 +80,7 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui) {
                     app.state.palette_open = true;
                 }
                 crate::views::activity::indicator(app, ui);
+                update_button(app, ui);
                 if !app.data.connected && app.data.connection_error.is_some() {
                     ui.label(RichText::new(format!("{} {}", icon::PLUGS, t("titlebar.disconnected"))).color(tk.p.red))
                         .on_hover_text(app.data.connection_error.clone().unwrap_or_default());
@@ -206,6 +207,50 @@ fn workspace_tabs(app: &mut LazyApp, ui: &mut egui::Ui) {
     }
     if let Some(id) = close {
         app.close_workspace(&id);
+    }
+}
+
+/// Versão nova: um botão que abre o aviso com o caminho para atualizar.
+fn update_button(app: &mut LazyApp, ui: &mut egui::Ui) {
+    let tk = app.tokens;
+    let Some(u) = app.data.update.clone().filter(|u| u["newer"] == true) else { return };
+    if app.eph.update_dismissed {
+        return;
+    }
+    let latest = u["latest"].as_str().unwrap_or("").to_string();
+    let label = RichText::new(format!("{}  v{latest}", icon::ARROW_CIRCLE_UP)).color(tk.on_accent).size(tk.text_size - 1.0);
+    let r =
+        ui.add(egui::Button::new(label).fill(tk.p.accent).corner_radius(egui::CornerRadius::same(6))).on_hover_text(t("update.tooltip"));
+    if r.clicked() {
+        app.eph.update_open = !app.eph.update_open;
+    }
+    let mut open = app.eph.update_open;
+    egui::Popup::from_response(&r)
+        .open_bool(&mut open)
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+        .align(egui::RectAlign::BOTTOM_END)
+        .width(340.0)
+        .show(|ui| {
+            ui.set_width(340.0);
+            ui.label(RichText::new(lazyaicode_i18n::tf("update.available", &[("version", &latest)])).strong().color(tk.p.text));
+            ui.label(widgets::muted(&tk, lazyaicode_i18n::tf("update.current", &[("current", &u["current"].as_str().unwrap_or("?"))])));
+            ui.add_space(4.0);
+            ui.label(widgets::muted(&tk, t("update.howTo")));
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                let url = u["url"].as_str().unwrap_or("").to_string();
+                if !url.is_empty() && widgets::primary(ui, &tk, &t("update.open")).clicked() {
+                    app.fire("system.open-url", serde_json::json!({ "url": url }));
+                    app.eph.update_open = false;
+                }
+                if widgets::button(ui, &tk, &t("update.later")).clicked() {
+                    app.eph.update_dismissed = true;
+                    app.eph.update_open = false;
+                }
+            });
+        });
+    if !open && !r.clicked() {
+        app.eph.update_open = false;
     }
 }
 

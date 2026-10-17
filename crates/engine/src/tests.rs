@@ -233,6 +233,7 @@ async fn panic_hunt_every_command_with_hostile_params() {
         "github.",
         "gitlab.",
         "system.fonts",
+        "system.check-update",
         "git.submodule.update",
     ];
     for c in commands() {

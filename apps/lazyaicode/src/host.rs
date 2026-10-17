@@ -7,6 +7,40 @@ use serde_json::{json, Value};
 pub struct DesktopHost {
     pub inbox: Inbox,
     pub decorations: bool,
+    /// os avisos saem do observador em segundo plano ([`crate::notifier`]),
+    /// que precisa saber o que esta janela mostra
+    pub looking: Option<(crate::notifier::Looking, u64)>,
+}
+
+impl Drop for DesktopHost {
+    fn drop(&mut self) {
+        if let Some((l, key)) = &self.looking {
+            l.forget(*key);
+        }
+    }
+}
+
+/// Aviso do sistema (balão/notificação), numa thread à parte.
+pub fn notify_system(title: &str, body: &str) {
+    let (title, body) = (title.to_string(), body.to_string());
+    std::thread::spawn(move || {
+        let _ = if cfg!(target_os = "macos") {
+            let esc = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
+            lazyaicode_platform::command("osascript")
+                .args(["-e", &format!("display notification \"{}\" with title \"{}\"", esc(&body), esc(&title))])
+                .status()
+        } else if cfg!(windows) {
+            // sem dependência de toast: o PowerShell mostra o balão do sistema
+            let script = format!(
+                "[void][System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms');$n=New-Object System.Windows.Forms.NotifyIcon;$n.Icon=[System.Drawing.SystemIcons]::Information;$n.Visible=$true;$n.ShowBalloonTip(5000,'{}','{}',[System.Windows.Forms.ToolTipIcon]::Info);Start-Sleep 6",
+                title.replace('\'', "''"),
+                body.replace('\'', "''")
+            );
+            lazyaicode_platform::command("powershell").args(["-NoProfile", "-Command", &script]).status()
+        } else {
+            lazyaicode_platform::command("notify-send").args(["-a", "LazyAICode", &title, &body]).status()
+        };
+    });
 }
 
 fn merge(mut params: Value, k: &str, v: Value) -> Value {
@@ -46,25 +80,17 @@ impl Host for DesktopHost {
     }
 
     fn notify(&self, title: &str, body: &str) {
-        let (title, body) = (title.to_string(), body.to_string());
-        std::thread::spawn(move || {
-            let _ = if cfg!(target_os = "macos") {
-                let esc = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
-                lazyaicode_platform::command("osascript")
-                    .args(["-e", &format!("display notification \"{}\" with title \"{}\"", esc(&body), esc(&title))])
-                    .status()
-            } else if cfg!(windows) {
-                // sem dependência de toast: o PowerShell mostra o balão do sistema
-                let script = format!(
-                    "[void][System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms');$n=New-Object System.Windows.Forms.NotifyIcon;$n.Icon=[System.Drawing.SystemIcons]::Information;$n.Visible=$true;$n.ShowBalloonTip(5000,'{}','{}',[System.Windows.Forms.ToolTipIcon]::Info);Start-Sleep 6",
-                    title.replace('\'', "''"),
-                    body.replace('\'', "''")
-                );
-                lazyaicode_platform::command("powershell").args(["-NoProfile", "-Command", &script]).status()
-            } else {
-                lazyaicode_platform::command("notify-send").args(["-a", "LazyAICode", &title, &body]).status()
-            };
-        });
+        notify_system(title, body);
+    }
+
+    fn background_notifications(&self) -> bool {
+        self.looking.is_some()
+    }
+
+    fn report_looking(&self, thread: Option<&str>) {
+        if let Some((l, key)) = &self.looking {
+            l.report(*key, thread);
+        }
     }
 
     fn native_decorations(&self) -> bool {

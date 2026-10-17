@@ -734,6 +734,11 @@ fn build() -> Vec<UiCmd> {
         crate::views::titlebar::viewport(app, "maximize");
         ok()
     });
+    r.add("ui.app.check-update", "update.check", "window", None, |app, _| {
+        app.check_update(true);
+        ok()
+    })
+    .doc("Consulta o último release e avisa se há versão nova (ou que esta já é a mais nova).");
     r.add("ui.app.quit", "Quit", "window", Some("Ctrl+Q"), |app, _| {
         // sair fecha todas as janelas (fechar só uma é o X dela)
         app.eph.quitting = true;

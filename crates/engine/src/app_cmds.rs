@@ -30,7 +30,7 @@ struct WsId {
 
 /// Preferências com comando próprio (`settings.<chave>`), além do
 /// `settings.save` com o objeto inteiro.
-const SETTINGS_KEYS: [(&str, &str, &str); 8] = [
+const SETTINGS_KEYS: [(&str, &str, &str); 9] = [
     ("default_model", "default-model", "string"),
     ("default_permission_mode", "default-permission-mode", "string"),
     ("send_with_modifier", "send-with-modifier", "bool"),
@@ -39,6 +39,7 @@ const SETTINGS_KEYS: [(&str, &str, &str); 8] = [
     ("default_provider", "default-provider", "string"),
     ("default_skip_permissions", "default-skip-permissions", "bool"),
     ("language", "language", "string"),
+    ("check_updates", "check-updates", "bool"),
 ];
 
 pub fn register(r: &mut Registry) {

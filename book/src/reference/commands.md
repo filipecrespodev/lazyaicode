@@ -2,7 +2,7 @@
 
 > Gerado por `cargo xtask commands` — não edite à mão.
 
-São **521** comandos: 247 do motor (rodam na CLI, no canal de controle, no MCP e na UI) e 274 de tela (`ui.*`, só no app aberto, pelo `ui.run` do canal de controle). Parâmetros com `?` são opcionais.
+São **524** comandos: 249 do motor (rodam na CLI, no canal de controle, no MCP e na UI) e 275 de tela (`ui.*`, só no app aberto, pelo `ui.run` do canal de controle). Parâmetros com `?` são opcionais.
 
 ## Motor
 
@@ -233,6 +233,7 @@ São **521** comandos: 247 do motor (rodam na CLI, no canal de controle, no MCP 
 | `settings.default-provider` | Set default provider — Muda uma preferência. | `value` |  |
 | `settings.default-skip-permissions` | Set default skip permissions — Muda uma preferência. | `value` |  |
 | `settings.language` | Set language — Muda uma preferência. | `value` |  |
+| `settings.check-updates` | Set check updates — Muda uma preferência. | `value` |  |
 | `prefs.get` 🔎 | Read a preference — Preferência da interface ou do cliente git (`theme`, `sshKeys`, `signCommits`…); sem `key`, todas. | `key`? |  |
 | `prefs.set` | Change a preference — Grava uma preferência; `value: null` apaga. | `key`, `value`? |  |
 | `prefs.list` 🔎 | Preference keys |  |  |
@@ -251,6 +252,7 @@ São **521** comandos: 247 do motor (rodam na CLI, no canal de controle, no MCP 
 | `system.which` 🔎 | Find a program | `name` |  |
 | `system.data-dir` 🔎 | Data folder |  |  |
 | `system.home` 🔎 | Home folder |  |  |
+| `system.check-update` 🔎 | Check for a new version — Consulta o último release publicado e diz se é mais novo que esta versão (`LAZYAICODE_UPDATE_URL` troca o endereço). |  |  |
 | `system.open-url` | Open a web page — Abre um endereço http(s) no navegador padrão. | `url` |  |
 | `system.session-file` 🔎 | Claude session file — Onde está o `.jsonl` da sessão do Claude Code de uma thread. | `id` |  |
 | `system.session-raw` 🔎 | Raw session messages — As últimas mensagens brutas da sessão (para depuração). | `id`, `last`? |  |
@@ -643,6 +645,7 @@ São **521** comandos: 247 do motor (rodam na CLI, no canal de controle, no MCP 
 | `ui.window.fullscreen` | Toggle full screen |  | `F11` |
 | `ui.window.minimize` | Minimize |  |  |
 | `ui.window.maximize` | Maximize |  |  |
+| `ui.app.check-update` | Check for updates — Consulta o último release e avisa se há versão nova (ou que esta já é a mais nova). |  |  |
 | `ui.app.quit` | Quit |  | `Ctrl+Q` |
 | `ui.window.always-on-top` | Keep window on top |  |  |
 

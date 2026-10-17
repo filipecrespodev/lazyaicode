@@ -65,6 +65,8 @@ pub struct Data {
     pub drafts: HashMap<String, String>,
     pub attachments: HashMap<String, Vec<Attachment>>,
     pub prefs: serde_json::Map<String, Value>,
+    /// `system.check-update`: `{current, latest, newer, url}`
+    pub update: Option<Value>,
     pub booted: bool,
 }
 

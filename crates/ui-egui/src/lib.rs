@@ -13,6 +13,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing))]
 
 pub mod app;
+pub mod attention;
 pub mod client;
 pub mod commands;
 pub mod control;

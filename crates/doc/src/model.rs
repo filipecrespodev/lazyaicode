@@ -105,6 +105,9 @@ pub struct Settings {
     /// idioma da interface: en, pt, es, zh
     #[serde(default = "english")]
     pub language: String,
+    /// avisar quando sair uma versão nova (consulta o último release)
+    #[serde(default = "yes")]
+    pub check_updates: bool,
     /// Preferências da interface e do cliente git (tema, fontes, `sshKeys`,
     /// `signCommits`…), chave → JSON. Ficam junto do estado para que a CLI,
     /// o MCP e a versão web vejam as mesmas.
@@ -131,6 +134,7 @@ impl Default for Settings {
             default_provider: claude_provider(),
             default_skip_permissions: false,
             language: english(),
+            check_updates: true,
             prefs: Map::new(),
         }
     }

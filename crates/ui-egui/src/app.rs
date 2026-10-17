@@ -75,8 +75,11 @@ pub struct Ephemeral {
     pub last_title: Option<String>,
     /// `ui.app.quit`: fechar a janela fecha o app inteiro
     pub quitting: bool,
-    /// aparência e atalhos comuns às janelas (só na principal)
-    pub shared: Option<(crate::theme::Appearance, HashMap<String, String>)>,
+    /// quando a versão nova foi consultada pela última vez (tempo do egui)
+    pub update_checked_at: Option<f64>,
+    /// o aviso de versão nova foi dispensado nesta sessão
+    pub update_dismissed: bool,
+    pub update_open: bool,
 }
 
 pub struct LazyApp {
@@ -101,15 +104,15 @@ pub struct LazyApp {
     /// a próxima captura usa o renderizador em CPU
     pub(crate) screenshot_cpu: bool,
     pub(crate) last_persisted: Option<String>,
+    attn: crate::attention::Attention,
     /// janela de um workspace aberta por outra (não é a principal)
     pub(crate) is_child: bool,
     /// abrir outro workspace abre outra janela (senão, outra aba)
     pub(crate) multi_window: bool,
-    pub(crate) factory: Option<crate::windows::WindowFactory>,
-    pub(crate) windows: Vec<crate::windows::Child>,
-    pub(crate) window_seq: u64,
     /// o workspace com que uma janela filha nasce
     start: Option<crate::windows::Reveal>,
+    /// consulta versões novas (as capturas desligam)
+    update_check: bool,
 }
 
 impl LazyApp {
@@ -122,9 +125,14 @@ impl LazyApp {
         Self::build(client, host, inbox, Some(start))
     }
 
+    /// Sem consultar versões novas (capturas de tela).
+    pub fn without_update_check(&mut self) {
+        self.update_check = false;
+    }
+
     /// Com a fábrica, abrir outro workspace abre outra janela do app.
     pub fn set_window_factory(&mut self, f: crate::windows::WindowFactory) {
-        self.factory = Some(f);
+        crate::windows::set_factory(f);
         self.multi_window = true;
     }
 
@@ -150,12 +158,11 @@ impl LazyApp {
             screenshot_waiters: vec![],
             screenshot_cpu: false,
             last_persisted: None,
+            attn: crate::attention::Attention::default(),
             is_child: start.is_some(),
             multi_window: start.is_some(),
-            factory: None,
-            windows: vec![],
-            window_seq: 0,
             start,
+            update_check: true,
         };
         app.boot();
         app
@@ -343,6 +350,37 @@ impl LazyApp {
         });
     }
 
+    /// Consulta o último release (desktop, janela principal). `manual`: diz
+    /// também quando já está na mais nova, ou o erro.
+    pub fn check_update(&mut self, manual: bool) {
+        self.eph.update_checked_at = Some(self.now);
+        self.call("system.check-update", Value::Null, move |app, r| match r {
+            Ok(v) => {
+                if manual && v["newer"] != json!(true) {
+                    app.toast(tf("update.upToDate", &[("version", &v["current"].as_str().unwrap_or("?"))]), ToastKind::Ok);
+                }
+                if manual {
+                    app.eph.update_dismissed = false;
+                }
+                app.data.update = Some(v);
+            }
+            Err(e) if manual => app.toast_err(&tf("update.failed", &[("error", &e.message)])),
+            Err(e) => log::info!("verificação de versão: {}", e.message),
+        });
+    }
+
+    /// Na abertura e a cada 6 h, se a pessoa não desligou.
+    fn maybe_check_update(&mut self) {
+        const EVERY: f64 = 6.0 * 3600.0;
+        let on = self.data.settings.as_ref().is_some_and(|s| s.check_updates);
+        if !on || !self.update_check || self.is_child || self.host.is_web() || !self.data.booted {
+            return;
+        }
+        if self.eph.update_checked_at.is_none_or(|at| self.now - at > EVERY) {
+            self.check_update(false);
+        }
+    }
+
     pub(crate) fn refresh_auth(&mut self, dir: Option<String>) {
         let key = dir.clone().unwrap_or_default();
         self.call("account.status", json!({ "claudeDir": dir }), move |app, r| {
@@ -378,7 +416,7 @@ impl LazyApp {
             Some(next) => self.switch_workspace(&next),
             // a janela de um workspace só fecha com ele (a principal passa
             // a mostrar o de outra janela, se houver)
-            None if self.is_child || !self.windows.is_empty() => self.eph.viewport.push("close"),
+            None if self.is_child || crate::windows::has_children() => self.eph.viewport.push("close"),
             None => {
                 self.data.active_workspace = None;
                 self.state.selected = None;
@@ -682,6 +720,14 @@ impl LazyApp {
     }
 
     fn on_event(&mut self, name: &str, p: Value) {
+        let notice = self.attn.on_event(name, &p);
+        self.dispatch_event(name, p);
+        if let Some(n) = notice {
+            self.attention(&n);
+        }
+    }
+
+    fn dispatch_event(&mut self, name: &str, p: Value) {
         let tid = p["threadId"].as_str().unwrap_or("").to_string();
         match name {
             events::AGENT_EVENT => self.on_agent_message(&tid, &p["msg"]),
@@ -739,11 +785,7 @@ impl LazyApp {
                 if let Some(c) = lazyaicode_doc::usage::from_result(m) {
                     self.data.context.insert(tid.to_string(), c);
                 }
-                self.on_finished(tid, m);
-            }
-            "control_request" if m["request"]["subtype"] == "can_use_tool" => {
-                let tool = m["request"]["tool_name"].as_str().unwrap_or("").to_string();
-                self.attention(tid, &format!("⏸ {}", self.thread_title(tid)), &tf("app.needsPermission", &[("tool", &tool)]));
+                self.on_finished(tid);
             }
             "system" if m["subtype"] == "init" => {
                 if m["mcp_servers"].is_array() {
@@ -803,29 +845,13 @@ impl LazyApp {
     }
 
     /// Avisa quando um turno termina numa thread que você não está olhando.
-    fn on_finished(&mut self, tid: &str, result: &Value) {
+    fn on_finished(&mut self, tid: &str) {
         self.refresh_thread_meta(tid);
         crate::views::git::on_turn_finished(self, tid);
         if self.state.selected.as_deref() == Some(tid) {
             let base = self.state.review_base.id();
             crate::views::review::load_changes(self, tid, base);
         }
-        let last_text = self.data.transcripts.get(tid).and_then(|tr| {
-            tr.items.iter().rev().find_map(|i| match i {
-                lazyaicode_doc::transcript::Item::Text { text, .. } => Some(text.clone()),
-                _ => None,
-            })
-        });
-        let body = if result["is_error"].as_bool().unwrap_or(false) {
-            match result["result"].as_str() {
-                Some(r) => tf("app.finishedWithErrorDetail", &[("detail", &r.chars().take(120).collect::<String>())]),
-                None => t("app.finishedWithError"),
-            }
-        } else {
-            last_text.map(|s| s.replace(['#', '*', '`', '_', '>'], "").trim().chars().take(160).collect()).unwrap_or_else(|| t("app.done"))
-        };
-        let title = format!("✓ {}", self.thread_title(tid));
-        self.attention(tid, &title, &body);
         // terminou na sua frente: já está lida
         if self.looking_at(tid) && self.data.thread(tid).is_some_and(|t| t.thread.unread) {
             if let Some(t) = self.data.thread_mut(tid) {
@@ -835,15 +861,18 @@ impl LazyApp {
         }
     }
 
-    fn attention(&mut self, tid: &str, title: &str, body: &str) {
+    fn attention(&mut self, n: &crate::attention::Notice) {
+        // no desktop quem avisa é o observador em segundo plano (a janela
+        // escondida não tem quadros)
+        if self.host.background_notifications() {
+            return;
+        }
+        let tid = n.thread.as_str();
         let notify = self.data.settings.as_ref().is_some_and(|s| s.notify_on_finish);
-        // com várias janelas, todas recebem o evento: avisa a do workspace da
-        // thread, ou a principal se nenhuma janela a mostra
-        let mine = self.data.thread(tid).is_some();
-        let elsewhere = self.windows.iter().any(|c| c.app.data.thread(tid).is_some());
-        let owner = mine || (!self.is_child && !elsewhere);
+        // uma janela filha só avisa das threads dela (a principal, do resto)
+        let owner = !self.is_child || self.data.thread(tid).is_some();
         if !self.looking_at(tid) && notify && owner {
-            self.host.notify(title, body);
+            self.host.notify(&n.title(&self.thread_title(tid)), &n.body);
         }
     }
 
@@ -903,10 +932,12 @@ impl LazyApp {
         let ctx = ui.ctx().clone();
         self.now = ctx.input(|i| i.time);
         self.focused = ctx.input(|i| i.focused);
+        self.host.report_looking(self.state.selected.as_deref().filter(|_| self.focused));
         if let Some(theme) = ctx.input(|i| i.raw.system_theme) {
             self.system_dark = theme == egui::Theme::Dark;
         }
         self.apply_theme(&ctx);
+        self.maybe_check_update();
         crate::commands::handle_shortcuts(self, &ctx);
         crate::views::titlebar::show(self, ui);
         if self.state.picking_workspaces || self.data.active_workspace.is_none() {
@@ -934,7 +965,7 @@ impl LazyApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
             self.eph.last_title = Some(title);
         }
-        crate::windows::show(self, &ctx);
+        crate::windows::root_pass(self, &ctx);
         let busy = self.data.threads.iter().any(|t| t.status == Status::Running) || !self.pending.is_empty();
         if busy || !self.toasts.is_empty() {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));

@@ -13,6 +13,7 @@
 
 mod host;
 mod local;
+mod notifier;
 // os testes de ponta a ponta usam scripts de shell (o `claude` falso)
 #[cfg(all(test, unix))]
 mod ui_e2e;
@@ -284,7 +285,18 @@ fn run() -> Result<(), String> {
     let wake: local::Wake = Arc::new(OnceLock::new());
     let inbox = Inbox::default();
     let decorations = cfg!(target_os = "macos");
-    let host = Box::new(host::DesktopHost { inbox: inbox.clone(), decorations });
+    // com o motor no processo, os avisos saem do observador em segundo plano
+    let looking = (args.connect.is_none()).then(notifier::Looking::default);
+    let window_key = Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let host_for = {
+        let (looking, window_key) = (looking.clone(), window_key.clone());
+        move |inbox: Inbox| host::DesktopHost {
+            inbox,
+            decorations,
+            looking: looking.clone().map(|l| (l, window_key.fetch_add(1, std::sync::atomic::Ordering::Relaxed))),
+        }
+    };
+    let host = Box::new(host_for(inbox.clone()));
 
     let (client, engine): (Box<dyn Client>, Option<Engine>) = match &args.connect {
         Some(url) => {
@@ -306,7 +318,10 @@ fn run() -> Result<(), String> {
         None => {
             let _guard = rt.enter();
             let engine = Engine::new(EngineOpts { data_dir: args.data_dir.clone(), ephemeral: args.ephemeral });
-            (Box::new(local::LocalClient::new(engine.clone(), rt.handle().clone(), wake.clone())), Some(engine))
+            if let Some(l) = &looking {
+                notifier::spawn(&engine, rt.handle(), l.clone(), Arc::new(host::notify_system));
+            }
+            (Box::new(local::LocalClient::new(engine.clone(), rt.handle().clone(), wake.clone(), egui::ViewportId::ROOT)), Some(engine))
         }
     };
 
@@ -316,6 +331,7 @@ fn run() -> Result<(), String> {
     }
 
     if let Some(out) = &args.screenshot {
+        app.without_update_check();
         let png =
             cpu_frame_with(&mut app, args.size, args.frames.max(20 + 10 * args.run.len() as u32), Duration::from_millis(60), &args.run)
                 .ok_or("renderização em CPU falhou")?;
@@ -342,33 +358,28 @@ fn run() -> Result<(), String> {
 
     let viewport = window_builder(decorations);
     // cada workspace a mais abre numa janela própria, no mesmo motor
-    let new_client: Box<dyn Fn() -> Box<dyn Client>> = match (&engine, &args.connect) {
+    let new_client: Box<dyn Fn(egui::ViewportId) -> Box<dyn Client>> = match (&engine, &args.connect) {
         (Some(e), _) => {
             let (e, h, w) = (e.clone(), rt.handle().clone(), wake.clone());
-            Box::new(move || Box::new(local::LocalClient::new(e.clone(), h.clone(), w.clone())))
+            Box::new(move |vid| Box::new(local::LocalClient::new(e.clone(), h.clone(), w.clone(), vid)))
         }
         (None, Some(url)) => {
             let token = args.token.clone().or_else(|| args.token_file.as_ref().and_then(|f| token::read(f).ok())).unwrap_or_default();
             let (url, w) = (url.clone(), wake.clone());
-            Box::new(move || {
+            Box::new(move |vid| {
                 let w = w.clone();
                 Box::new(WsClient::connect(&url, &token, move || {
                     if let Some(c) = w.get() {
-                        c.request_repaint()
+                        c.request_repaint_of(vid)
                     }
                 }))
             })
         }
         (None, None) => return Err("sem motor".into()),
     };
-    app.set_window_factory(Box::new(move || {
+    app.set_window_factory(Box::new(move |vid| {
         let inbox = Inbox::default();
-        NewWindow {
-            client: new_client(),
-            host: Box::new(host::DesktopHost { inbox: inbox.clone(), decorations }),
-            inbox,
-            builder: window_builder(decorations),
-        }
+        NewWindow { client: new_client(vid), host: Box::new(host_for(inbox.clone())), inbox, builder: window_builder(decorations) }
     }));
     let options = eframe::NativeOptions { viewport, renderer: eframe::Renderer::Wgpu, ..Default::default() };
     let w = wake.clone();

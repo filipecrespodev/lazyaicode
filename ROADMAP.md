@@ -2,7 +2,7 @@
 
 **Estágio:** reescrita em Rust puro concluída; v0.4 com uma janela por workspace. O app desktop, a CLI,
 o canal de controle, o MCP e a versão web rodam sobre o mesmo motor de
-comandos (521 comandos: 247 do motor + 274 de tela).
+comandos (524 comandos: 249 do motor + 275 de tela).
 
 ## Pronto
 
@@ -29,4 +29,5 @@ comandos (521 comandos: 247 do motor + 274 de tela).
 4. **Tokens do GitHub/GitLab no chaveiro** do sistema.
 5. **Shaping de texto complexo** (scripts RTL e índicos).
 6. **`cargo fuzz` contínuo** no CI.
-7. Atualizações automáticas do app.
+7. Instalar a versão nova pelo próprio app (hoje ele avisa que saiu e leva
+   à página do release).

@@ -584,6 +584,17 @@ pub fn register(r: &mut Registry) {
     r.add(Spec::new("system.data-dir", "Data folder", "system").read_only().run(|e, _| async move { Ok(json!(e.core.data_dir)) }));
     r.add(Spec::new("system.home", "Home folder", "system").read_only().run(|_, _| async move { Ok(json!(claude::home())) }));
     r.add(
+        Spec::new("system.check-update", "Check for a new version", "system")
+            .read_only()
+            .doc("Consulta o último release publicado e diz se é mais novo que esta versão (`LAZYAICODE_UPDATE_URL` troca o endereço).")
+            .run(|_, _| async move {
+                let api = std::env::var("LAZYAICODE_UPDATE_URL").unwrap_or_else(|_| UPDATE_URL.to_string());
+                let (tag, url) = lazyaicode_git::github::latest_release(&api).await?;
+                let current = env!("CARGO_PKG_VERSION");
+                Ok(json!({ "current": current, "latest": tag.trim_start_matches('v'), "newer": is_newer(&tag, current), "url": url }))
+            }),
+    );
+    r.add(
         Spec::new("system.open-url", "Open a web page", "system")
             .params(vec![p::s("url")])
             .doc("Abre um endereço http(s) no navegador padrão.")
@@ -729,5 +740,45 @@ mod tests {
         t.apply(&json!({"type":"assistant","message":{"id":"m","content":[{"type":"text","text":"olá"}]}}));
         let md = markdown(&t.items);
         assert!(md.contains("### Você\n\noi") && md.ends_with("olá"), "{md}");
+    }
+}
+
+/// Onde sai o último release do app.
+const UPDATE_URL: &str = "https://api.github.com/repos/filipecrespodev/lazyaicode/releases/latest";
+
+/// `v0.4.1` é mais novo que `0.4.0`? Compara `maior.menor.correção`; o que
+/// não for número (`-rc1`, lixo) conta como zero, e uma tag ilegível nunca é
+/// mais nova.
+pub(crate) fn is_newer(tag: &str, current: &str) -> bool {
+    fn parts(v: &str) -> Option<[u64; 3]> {
+        let core = v.trim().trim_start_matches('v').split(['-', '+']).next()?;
+        let mut it = core.split('.');
+        let mut out = [0u64; 3];
+        for slot in &mut out {
+            *slot = it.next().map_or(Some(0), |p| p.parse().ok())?;
+        }
+        Some(out)
+    }
+    match (parts(tag), parts(current)) {
+        (Some(a), Some(b)) => a > b,
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod update_tests {
+    use super::is_newer;
+
+    #[test]
+    fn only_a_higher_release_is_newer() {
+        assert!(is_newer("v0.4.1", "0.4.0"));
+        assert!(is_newer("v0.10.0", "0.9.9"));
+        assert!(is_newer("1.0", "0.99.0"));
+        assert!(!is_newer("v0.4.0", "0.4.0"));
+        assert!(!is_newer("v0.3.9", "0.4.0"));
+        assert!(!is_newer("v0.4.0-rc1", "0.4.0"));
+        assert!(!is_newer("nightly", "0.4.0"));
+        assert!(!is_newer("", "0.4.0"));
+        assert!(!is_newer("v99999999999999999999999.0.0", "0.4.0"));
     }
 }

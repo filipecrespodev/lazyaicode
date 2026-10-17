@@ -156,3 +156,25 @@ pub fn fake_bin_dir(dir: &Path) -> PathBuf {
     }
     bin
 }
+
+/// Um servidor HTTP local que responde a qualquer pedido com o "último
+/// release" `tag` do GitHub (para `system.check-update` sem rede). Devolve o
+/// endereço; atende em segundo plano enquanto o processo viver.
+pub fn fake_release_server(tag: &str) -> String {
+    use std::io::{Read, Write};
+    let Ok(listener) = std::net::TcpListener::bind("127.0.0.1:0") else { return "http://127.0.0.1:9/".into() };
+    let addr = listener.local_addr().map(|a| a.to_string()).unwrap_or_default();
+    let body = format!(r#"{{"tag_name":"{tag}","html_url":"https://github.com/filipecrespodev/lazyaicode/releases/tag/{tag}"}}"#);
+    std::thread::spawn(move || {
+        for mut s in listener.incoming().flatten() {
+            let mut buf = [0u8; 4096];
+            let _ = s.read(&mut buf);
+            let _ = write!(
+                s,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+        }
+    });
+    format!("http://{addr}/repos/x/y/releases/latest")
+}

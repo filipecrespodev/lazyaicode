@@ -65,6 +65,42 @@ fn repo_url(base_url: &str, repo_path: &str, suffix: &str) -> String {
     format!("{}/repos/{}{}", api_base(base_url), repo_path.trim_matches('/'), suffix)
 }
 
+/// Teto da resposta do "último release" (a de verdade tem poucos KB).
+const RELEASE_MAX_BYTES: usize = 1 << 20;
+
+/// O último release publicado (`GET …/releases/latest`, sem token):
+/// `(tag, endereço da página)`.
+pub async fn latest_release(api_url: &str) -> Result<(String, String), GitCommandError> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| GitCommandError::Internal(format!("falha ao criar o cliente HTTP: {e}")))?;
+    let mut resp = client
+        .get(api_url)
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "LazyAICode")
+        .send()
+        .await
+        .map_err(|e| GitCommandError::Internal(format!("não foi possível consultar as versões: {e}")))?;
+    if !resp.status().is_success() {
+        return Err(GitCommandError::Internal(format!("consulta de versões: HTTP {}", resp.status())));
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = resp.chunk().await.map_err(|e| GitCommandError::Internal(e.to_string()))? {
+        if body.len() + chunk.len() > RELEASE_MAX_BYTES {
+            return Err(GitCommandError::Internal("resposta de versões grande demais".into()));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    let v: Value = serde_json::from_slice(&body).map_err(|e| GitCommandError::Internal(format!("resposta de versões inválida: {e}")))?;
+    let tag = v["tag_name"]
+        .as_str()
+        .filter(|t| !t.is_empty() && t.len() <= 64)
+        .ok_or_else(|| GitCommandError::Internal("release sem tag".into()))?;
+    let url = v["html_url"].as_str().filter(|u| u.starts_with("https://") && u.len() <= 512).unwrap_or_default();
+    Ok((tag.to_string(), url.to_string()))
+}
+
 fn request(method: reqwest::Method, url: &str, token: &str) -> Result<reqwest::RequestBuilder, GitCommandError> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))

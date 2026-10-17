@@ -68,6 +68,14 @@ pub trait Host {
     fn tz_offset_ms(&self) -> i64 {
         0
     }
+    /// Os avisos do sistema saem de um observador em segundo plano (o
+    /// desktop com o motor no processo), não da janela.
+    fn background_notifications(&self) -> bool {
+        false
+    }
+    /// A cada quadro: a thread que esta janela mostra com foco (ou nenhuma).
+    /// O observador não avisa de uma thread que alguém está olhando.
+    fn report_looking(&self, _thread: Option<&str>) {}
 }
 
 /// Início do dia local, em ms.

@@ -18,6 +18,7 @@ lazyaicode-ui-egui.workspace = true
 lazyaicode-render-cpu.workspace = true
 lazyaicode-git.workspace = true
 lazyaicode-platform.workspace = true
+lazyaicode-i18n.workspace = true
 egui.workspace = true
 eframe = { workspace = true, features = ["wgpu", "default_fonts", "x11", "wayland", "accesskit", "links"] }
 serde_json.workspace = true
