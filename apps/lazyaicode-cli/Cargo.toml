@@ -20,6 +20,8 @@ clap = { version = "4", features = ["derive", "env"] }
 
 [dev-dependencies]
 tempfile.workspace = true
+lazyaicode-testkit.workspace = true
+tungstenite.workspace = true
 
 [lints]
 workspace = true

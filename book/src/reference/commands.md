@@ -2,7 +2,7 @@
 
 > Gerado por `cargo xtask commands` — não edite à mão.
 
-São **515** comandos: 245 do motor (rodam na CLI, no canal de controle, no MCP e na UI) e 270 de tela (`ui.*`, só no app aberto, pelo `ui.run` do canal de controle). Parâmetros com `?` são opcionais.
+São **516** comandos: 246 do motor (rodam na CLI, no canal de controle, no MCP e na UI) e 270 de tela (`ui.*`, só no app aberto, pelo `ui.run` do canal de controle). Parâmetros com `?` são opcionais.
 
 ## Motor
 
@@ -11,7 +11,7 @@ São **515** comandos: 245 do motor (rodam na CLI, no canal de controle, no MCP 
 | Comando | Descrição | Parâmetros | Atalho |
 |---|---|---|---|
 | `account.list` 🔎 | Claude accounts — Diretórios de configuração do Claude Code encontrados. |  |  |
-| `account.status` 🔎 | Account login — Login de uma conta (diretório Claude); sem `claudeDir`, `~/.claude`. | `claudeDir`? |  |
+| `account.status` 🔎 | Account login — Login de uma conta (diretório Claude); sem `claudeDir`, a ativa (`$CLAUDE_CONFIG_DIR` ou `~/.claude`). | `claudeDir`? |  |
 
 ### `ai`
 
@@ -287,6 +287,7 @@ São **515** comandos: 245 do motor (rodam na CLI, no canal de controle, no MCP 
 | `thread.send` | Send message — Manda uma mensagem ao agente da thread, abrindo o processo se preciso. A resposta chega pelos eventos `agent-event`. | `id`, `text`, `images`? |  |
 | `thread.interrupt` | Stop the agent — Interrompe o turno em curso. | `id` | `Escape` |
 | `thread.respond-permission` | Answer a permission request | `id`, `requestId`, `allow`, `input`?, `message`?, `toolUseId`?, `updatedPermissions`? |  |
+| `thread.pending-permission` 🔎 | Pending permission request — O pedido de permissão que o agente da thread espera responder (status `awaiting`), para quem não acompanha os eventos: responda com `thread.respond-permission`. | `id` |  |
 | `thread.set-model` | Change model | `id`, `model` |  |
 | `thread.set-permission-mode` | Change permission mode | `id`, `mode` | `Shift+Tab` |
 | `thread.set-options` | Session options — Opções que só valem ao abrir o processo (esforço, agente, pastas extras). Com o agente aberto e parado, ele é encerrado: o próximo turno retoma a mesma conversa já com elas. `""` limpa. | `id`, `effort`?, `agent`?, `addDirs`?, `skipPermissions`? |  |

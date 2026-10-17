@@ -24,10 +24,12 @@ md5.workspace = true
 trash.workspace = true
 base64.workspace = true
 git2.workspace = true
+lazyaicode-testkit.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
 git2.workspace = true
+lazyaicode-testkit.workspace = true
 
 [lints]
 workspace = true

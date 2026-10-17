@@ -2,6 +2,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+#[cfg(unix)]
+pub mod fakes;
+pub mod scenario;
+
 use std::path::Path;
 use std::process::Command;
 

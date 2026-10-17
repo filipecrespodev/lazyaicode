@@ -2557,9 +2557,11 @@ dependencies = [
  "lazyaicode-engine",
  "lazyaicode-git",
  "lazyaicode-protocol",
+ "lazyaicode-testkit",
  "serde_json",
  "tempfile",
  "tokio",
+ "tungstenite 0.30.0",
 ]
 
 [[package]]
@@ -2585,6 +2587,7 @@ dependencies = [
  "lazyaicode-git",
  "lazyaicode-platform",
  "lazyaicode-protocol",
+ "lazyaicode-testkit",
  "md5",
  "parking_lot",
  "serde",
@@ -2662,6 +2665,7 @@ dependencies = [
 name = "lazyaicode-testkit"
 version = "0.3.0"
 dependencies = [
+ "serde_json",
  "tempfile",
 ]
 

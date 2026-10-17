@@ -2,7 +2,7 @@
 
 **Estágio:** reescrita em Rust puro concluída (v0.3). O app desktop, a CLI,
 o canal de controle, o MCP e a versão web rodam sobre o mesmo motor de
-comandos (504 comandos: 245 do motor + 259 de tela).
+comandos (516 comandos: 246 do motor + 270 de tela).
 
 ## Pronto
 
