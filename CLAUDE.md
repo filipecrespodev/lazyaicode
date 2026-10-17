@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # LazyAICode — instruções para agentes
 
 Leia o [`AGENTS.md`](AGENTS.md) primeiro: ele tem o mapa do workspace, as
@@ -29,13 +33,35 @@ camadas e as regras. Este arquivo é o resumo do que mais pesa numa sessão.
 ## Comandos úteis
 
 ```sh
-cargo xtask ci                      # o portão
+cargo xtask ci                      # o portão: fmt --check, layers, i18n, clippy -D warnings, test, wasm
+cargo test -p lazyaicode-engine nome_do_teste   # um teste só (pacotes: lazyaicode-<crate>)
+cargo xtask layers | wasm | i18n    # os portões separados, mais rápidos que o ci inteiro
 cargo xtask commands                # regenera book/src/reference/{commands,keyboard}.md
 python3 xtask/scripts/gen_git_commands.py   # depois de mexer em crates/engine/src/git_cmds/
 cargo run -p lazyaicode -- --ephemeral --screenshot /tmp/x.png --run 'ui.settings.appearance {}'
 cargo test --manifest-path fuzz/Cargo.toml  # smoke de fuzzing
 mdbook build book
 ```
+
+`LAZYAICODE_CLAUDE_BIN=<claude falso>` roda o app sem gastar tokens;
+`LAZYAICODE_DATA_DIR` (ou `--data-dir`) separa o estado do seu uso normal.
+
+## O caminho de um comando (o que exige ler vários arquivos)
+
+- Comando do motor: `crates/engine/src/*_cmds.rs` (id, parâmetros,
+  `read_only`/`destructive`, `run`); teste por `Engine::run` em
+  `crates/engine/src/tests.rs`. O motor valida os parâmetros (`check_params`:
+  nenhuma chave desconhecida), roda numa task própria e registra no journal.
+- Comandos `git.*`/`github.*`/`gitlab.*`/`ai.*`: edite `git_cmds/*.rs` e
+  regenere; `git_registry.rs` é gerado.
+- Comando de tela (`ui.*`): `crates/ui-egui/src/commands.rs`; estado de tela
+  em `state.rs` (o que `ui.inspect` devolve), cópia dos dados do motor em
+  `data.rs`. A UI chama via `app.call`/`app.fire` → `Client` (`LocalClient`
+  no desktop, `WsClient` na web contra `lazyaicode-cli serve`).
+- O que vem depois (saída do agente, status, terminal) chega como eventos
+  (`agent-event`, `thread-status`, `term-data`…) a todos os clientes.
+- O teste `engine_and_screen_commands_together_pass_500_without_collisions`
+  (`apps/lazyaicode/src/main.rs`) quebra se ids colidirem ou o total cair.
 
 ## Dirigindo o app
 
