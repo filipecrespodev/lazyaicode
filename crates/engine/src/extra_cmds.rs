@@ -442,10 +442,14 @@ pub fn register(r: &mut Registry) {
                 path: String,
             }
             let p: P = parse(v)?;
-            let mut ignored = e.workspace(&p.id)?.ignored_paths;
-            ignored.retain(|x| *x != p.path);
+            let w = e.workspace(&p.id)?;
+            // a comparação é por caminho absoluto: `docs` vale como `<workspace>/docs`
+            let path =
+                if Path::new(&p.path).is_absolute() { p.path } else { Path::new(&w.path).join(&p.path).to_string_lossy().to_string() };
+            let mut ignored = w.ignored_paths;
+            ignored.retain(|x| *x != path);
             if hide {
-                ignored.push(p.path);
+                ignored.push(path);
             }
             e.run("workspace.update", json!({ "id": p.id, "ignoredPaths": ignored })).await
         }));
