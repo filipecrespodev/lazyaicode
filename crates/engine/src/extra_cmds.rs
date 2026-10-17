@@ -381,6 +381,14 @@ pub fn register(r: &mut Registry) {
                 ))
             }),
     );
+    // o que pede atenção em todos os workspaces: as janelas de um workspace
+    // mostram o que anda nos outros
+    r.add(Spec::new("thread.activity", "Threads needing attention", "thread").read_only().run(|e, _| async move {
+        let threads: Vec<_> = e.core.store.lock().state.threads.iter().filter(|t| !t.archived).cloned().collect();
+        let mut out: Vec<_> = threads.iter().map(|t| e.view(t)).filter(|v| v.status != Status::Idle || v.thread.unread).collect();
+        out.sort_by_key(|v| std::cmp::Reverse(v.thread.updated_at));
+        json_of(out)
+    }));
     r.add(Spec::new("thread.count", "Thread counts", "thread").params(vec![p::os("workspaceId")]).read_only().run(|e, v| async move {
         #[derive(Deserialize)]
         #[serde(rename_all = "camelCase")]

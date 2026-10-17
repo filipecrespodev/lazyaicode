@@ -177,6 +177,8 @@ pub struct UiState {
     /// diálogo aberto (`confirm-delete`, `about`…), para o inspect
     pub dialog: Option<String>,
     pub shortcuts_help: bool,
+    /// a lista do que pede atenção em todos os workspaces (barra de título)
+    pub activity_open: bool,
 }
 
 impl Default for UiState {
@@ -207,6 +209,7 @@ impl Default for UiState {
             shortcuts: HashMap::new(),
             dialog: None,
             shortcuts_help: false,
+            activity_open: false,
         }
     }
 }

@@ -566,10 +566,21 @@ fn build() -> Vec<UiCmd> {
         if app.data.workspace(&id).is_none() {
             return Err(t("uiErrors.workspaceNotFound"));
         }
-        app.switch_workspace(&id);
+        app.open_workspace(&id, None);
         ok()
     })
-    .params(vec![ParamInfo::req("id", ParamType::String)]);
+    .params(vec![ParamInfo::req("id", ParamType::String)])
+    .doc("Abre o workspace: na janela onde ele já está, ou numa janela nova (no desktop); na web, numa aba.");
+    r.add("ui.activity.toggle", "activity.title", "workspace", Some("Ctrl+Shift+D"), |app, _| {
+        app.state.activity_open = !app.state.activity_open;
+        if app.state.activity_open {
+            app.refresh_activity();
+        }
+        ok()
+    })
+    .doc("Mostra / esconde as sessões de todos os workspaces que rodam, esperam você ou terminaram sem ser lidas.");
+    r.add("ui.activity.next", "activity.next", "workspace", Some("Ctrl+Shift+T"), |app, _| crate::views::activity::open_next(app))
+        .doc("Abre a próxima sessão que espera você ou terminou sem ser lida, em qualquer workspace (na janela dele).");
     r.add("ui.workspace.close", "Close workspace tab", "workspace", Some("Ctrl+W"), |app, _| {
         let id = app.data.active_workspace.clone().ok_or_else(|| t("uiErrors.noWorkspace"))?;
         app.close_workspace(&id);
@@ -580,8 +591,8 @@ fn build() -> Vec<UiCmd> {
     for n in 1..=9usize {
         let sc = format!("Ctrl+Alt+{n}");
         r.add(&format!("ui.workspace.switch-{n}"), &format!("Workspace {n}"), "workspace", Some(&sc), move |app, _| {
-            let id = app.state.open_workspaces.get(n - 1).cloned().ok_or_else(|| t("uiErrors.noWorkspaceAt"))?;
-            app.switch_workspace(&id);
+            let id = crate::windows::open_everywhere(app).get(n - 1).cloned().ok_or_else(|| t("uiErrors.noWorkspaceAt"))?;
+            app.open_workspace(&id, None);
             ok()
         });
     }
@@ -724,6 +735,8 @@ fn build() -> Vec<UiCmd> {
         ok()
     });
     r.add("ui.app.quit", "Quit", "window", Some("Ctrl+Q"), |app, _| {
+        // sair fecha todas as janelas (fechar só uma é o X dela)
+        app.eph.quitting = true;
         crate::views::titlebar::viewport(app, "close");
         ok()
     });
@@ -1106,11 +1119,11 @@ fn step_thread(app: &mut LazyApp, d: i32) -> Result<Value, String> {
 }
 
 fn step_workspace(app: &mut LazyApp, d: i32) -> Result<Value, String> {
-    let ids = app.state.open_workspaces.clone();
+    let ids = crate::windows::open_everywhere(app);
     let Some(cur) = app.data.active_workspace.as_ref().and_then(|a| ids.iter().position(|x| x == a)) else { return ok() };
     let n = ids.len() as i32;
     if let Some(id) = ids.get(((cur as i32 + d).rem_euclid(n.max(1))) as usize).cloned() {
-        app.switch_workspace(&id);
+        app.open_workspace(&id, None);
     }
     ok()
 }

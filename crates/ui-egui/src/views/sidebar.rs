@@ -394,6 +394,15 @@ fn thread_row(
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, tk.row_h), Sense::click());
     row_bg(ui, &tk, rect, depth, selected, resp.hovered(), true);
     let painter = ui.painter_at(rect);
+    // esperando você: a linha inteira chama atenção
+    if th.status == lazyaicode_doc::Status::Awaiting {
+        painter.rect_filled(rect, egui::CornerRadius::same(4), tk.p.amber.gamma_multiply(0.10));
+        painter.rect_filled(
+            egui::Rect::from_min_size(rect.left_top(), Vec2::new(2.0, rect.height())),
+            egui::CornerRadius::same(1),
+            tk.p.amber,
+        );
+    }
     let cy = rect.center().y;
     let mut x = rect.left() + 6.0 + depth as f32 * 14.0;
     // coluna de status (10 px)
@@ -439,11 +448,31 @@ fn thread_row(
         archive_clicked = r.clicked();
         right = ar.left() - 4.0;
     } else {
-        let time = widgets::rel_time(th.thread.updated_at, now);
-        let tg = painter.layout_no_wrap(time, egui::FontId::proportional(10.5), tk.p.faint);
-        let w = tg.size().x;
-        painter.galley(egui::pos2(right - w, cy - tg.size().y / 2.0), tg, tk.p.faint);
-        right -= w + 6.0;
+        // rodando, esperando ou com erro: um selo no lugar da hora
+        let badge = match th.status {
+            lazyaicode_doc::Status::Running => Some(("sidebar.badgeRunning", tk.p.blue)),
+            lazyaicode_doc::Status::Awaiting => Some(("sidebar.badgeAwaiting", tk.p.amber)),
+            lazyaicode_doc::Status::Error => Some(("sidebar.badgeError", tk.p.red)),
+            lazyaicode_doc::Status::Idle => None,
+        };
+        match badge {
+            Some((key, c)) => {
+                let tg = painter.layout_no_wrap(t(key), egui::FontId::proportional(10.0), c);
+                let size = tg.size() + Vec2::new(10.0, 3.0);
+                let br = egui::Rect::from_min_size(egui::pos2(right - size.x, cy - size.y / 2.0), size);
+                painter.rect_filled(br, egui::CornerRadius::same(4), c.gamma_multiply(0.16));
+                painter.galley(br.min + Vec2::new(5.0, 1.5), tg, c);
+                right -= size.x + 6.0;
+            }
+            None => {
+                let time = widgets::rel_time(th.thread.updated_at, now);
+                let color = if th.thread.unread { tk.p.accent } else { tk.p.faint };
+                let tg = painter.layout_no_wrap(time, egui::FontId::proportional(10.5), color);
+                let w = tg.size().x;
+                painter.galley(egui::pos2(right - w, cy - tg.size().y / 2.0), tg, color);
+                right -= w + 6.0;
+            }
+        }
     }
     let mut badge = |text: &str, size: f32, color: Color32| {
         let g = painter.layout_no_wrap(text.to_string(), egui::FontId::proportional(size), color);
@@ -504,7 +533,19 @@ fn thread_row(
         });
         return;
     }
-    let resp = resp.on_hover_text(format!("{}\n{}", th.thread.title, widgets::short_path(&th.thread.cwd)));
+    let state = match th.status {
+        lazyaicode_doc::Status::Running => t("sidebar.statusRunning"),
+        lazyaicode_doc::Status::Awaiting => t("sidebar.statusAwaiting"),
+        lazyaicode_doc::Status::Error => t("sidebar.statusError"),
+        lazyaicode_doc::Status::Idle if th.thread.unread => t("activity.unread"),
+        lazyaicode_doc::Status::Idle => String::new(),
+    };
+    let tip = if state.is_empty() {
+        format!("{}\n{}", th.thread.title, widgets::short_path(&th.thread.cwd))
+    } else {
+        format!("{}\n{}\n{state}", th.thread.title, widgets::short_path(&th.thread.cwd))
+    };
+    let resp = resp.on_hover_text(tip);
     if resp.clicked() {
         app.select_thread(&id);
     }

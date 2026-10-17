@@ -22,10 +22,12 @@ pub mod state;
 pub mod terminal;
 pub mod theme;
 pub mod views;
+pub mod windows;
 
 pub use app::LazyApp;
 pub use client::{Client, Incoming, MockClient, Ticket, WsClient};
 pub use host::{Host, Inbox, NoHost, UiMsg};
+pub use windows::{NewWindow, WindowFactory};
 
 /// Carregadores de imagem do egui (anexos, avatares). Chamar uma vez com o
 /// `Context`.

@@ -1,5 +1,6 @@
 //! As telas. Cada uma lê de `LazyApp` e age por comandos.
 
+pub mod activity;
 pub mod composer;
 pub mod dialogs;
 pub mod footer;

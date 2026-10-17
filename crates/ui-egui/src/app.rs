@@ -65,6 +65,18 @@ pub struct Ephemeral {
     pub copy_request: Option<String>,
     /// comandos de janela pendentes (`minimize`, `maximize`, `close`, `fullscreen`)
     pub viewport: Vec<&'static str>,
+    /// workspaces a abrir em outra janela (a principal atende)
+    pub window_requests: Vec<crate::windows::Reveal>,
+    /// workspaces abertos nas outras janelas
+    pub other_windows: Vec<String>,
+    /// thread a abrir quando a lista do workspace chegar
+    pub select_after_load: Option<String>,
+    /// o título da janela já mandado ao sistema
+    pub last_title: Option<String>,
+    /// `ui.app.quit`: fechar a janela fecha o app inteiro
+    pub quitting: bool,
+    /// aparência e atalhos comuns às janelas (só na principal)
+    pub shared: Option<(crate::theme::Appearance, HashMap<String, String>)>,
 }
 
 pub struct LazyApp {
@@ -89,10 +101,34 @@ pub struct LazyApp {
     /// a próxima captura usa o renderizador em CPU
     pub(crate) screenshot_cpu: bool,
     pub(crate) last_persisted: Option<String>,
+    /// janela de um workspace aberta por outra (não é a principal)
+    pub(crate) is_child: bool,
+    /// abrir outro workspace abre outra janela (senão, outra aba)
+    pub(crate) multi_window: bool,
+    pub(crate) factory: Option<crate::windows::WindowFactory>,
+    pub(crate) windows: Vec<crate::windows::Child>,
+    pub(crate) window_seq: u64,
+    /// o workspace com que uma janela filha nasce
+    start: Option<crate::windows::Reveal>,
 }
 
 impl LazyApp {
     pub fn new(client: Box<dyn Client>, host: Box<dyn Host>, inbox: Inbox) -> Self {
+        Self::build(client, host, inbox, None)
+    }
+
+    /// Uma janela filha, já com o workspace (e a thread) que vai mostrar.
+    pub(crate) fn new_window(client: Box<dyn Client>, host: Box<dyn Host>, inbox: Inbox, start: crate::windows::Reveal) -> Self {
+        Self::build(client, host, inbox, Some(start))
+    }
+
+    /// Com a fábrica, abrir outro workspace abre outra janela do app.
+    pub fn set_window_factory(&mut self, f: crate::windows::WindowFactory) {
+        self.factory = Some(f);
+        self.multi_window = true;
+    }
+
+    fn build(client: Box<dyn Client>, host: Box<dyn Host>, inbox: Inbox, start: Option<crate::windows::Reveal>) -> Self {
         let state = UiState::default();
         let tokens = Tokens::new(theme::resolve(&state.appearance.theme, true), &state.appearance);
         let mut app = Self {
@@ -114,6 +150,12 @@ impl LazyApp {
             screenshot_waiters: vec![],
             screenshot_cpu: false,
             last_persisted: None,
+            is_child: start.is_some(),
+            multi_window: start.is_some(),
+            factory: None,
+            windows: vec![],
+            window_seq: 0,
+            start,
         };
         app.boot();
         app
@@ -200,7 +242,9 @@ impl LazyApp {
             self.state.appearance = a;
         }
         if let Ok(v) = serde_json::from_value::<Vec<String>>(get("ui.openWorkspaces")) {
-            self.state.open_workspaces = v;
+            if !self.is_child {
+                self.state.open_workspaces = v;
+            }
         }
         if let Some(b) = get("ui.sidebarOpen").as_bool() {
             self.state.sidebar_open = b;
@@ -221,15 +265,21 @@ impl LazyApp {
 
     /// Grava as preferências de tela que mudaram (no máximo uma vez por quadro).
     fn persist_prefs(&mut self) {
-        let snapshot = json!({
+        let mut snapshot = json!({
             "ui.appearance": self.state.appearance,
-            "ui.openWorkspaces": self.state.open_workspaces,
+            "ui.openWorkspaces": crate::windows::open_everywhere(self),
             "ui.sidebarOpen": self.state.sidebar_open,
             "ui.sidebarWidth": self.state.sidebar_width.round(),
             "ui.treeMode": self.state.tree_mode,
             "ui.shortcuts": self.state.shortcuts,
             "ui.collapsed": self.state.collapsed,
         });
+        if self.is_child {
+            // quais workspaces ficam abertos é a principal quem grava
+            if let Some(m) = snapshot.as_object_mut() {
+                m.remove("ui.openWorkspaces");
+            }
+        }
         let s = snapshot.to_string();
         if !self.data.booted || self.last_persisted.as_deref() == Some(s.as_str()) {
             return;
@@ -259,6 +309,14 @@ impl LazyApp {
                 app.data.booted = true;
                 for w in app.data.workspaces.clone() {
                     app.refresh_auth(w.claude_dir.clone());
+                }
+                app.refresh_activity();
+                if let Some(start) = app.start.take() {
+                    app.switch_workspace(&start.workspace);
+                    if let Some(t) = start.thread {
+                        app.reveal_thread(&t);
+                    }
+                    return;
                 }
                 match app.data.workspaces.len() {
                     0 => app.state.new_workspace_open = true,
@@ -294,7 +352,10 @@ impl LazyApp {
     }
 
     pub fn switch_workspace(&mut self, id: &str) {
-        if !self.state.open_workspaces.iter().any(|w| w == id) {
+        if self.multi_window {
+            // uma janela, um workspace: os outros têm a janela deles
+            self.state.open_workspaces = vec![id.to_string()];
+        } else if !self.state.open_workspaces.iter().any(|w| w == id) {
             self.state.open_workspaces.push(id.to_string());
         }
         self.state.picking_workspaces = false;
@@ -315,6 +376,9 @@ impl LazyApp {
         }
         match self.state.open_workspaces.get(i.min(self.state.open_workspaces.len().saturating_sub(1))).cloned() {
             Some(next) => self.switch_workspace(&next),
+            // a janela de um workspace só fecha com ele (a principal passa
+            // a mostrar o de outra janela, se houver)
+            None if self.is_child || !self.windows.is_empty() => self.eph.viewport.push("close"),
             None => {
                 self.data.active_workspace = None;
                 self.state.selected = None;
@@ -324,6 +388,51 @@ impl LazyApp {
                 self.state.picking_workspaces = true;
             }
         }
+    }
+
+    /// Abre o workspace onde fizer sentido: nesta janela se é o dela (ou se
+    /// ela está vazia, ou se o app não abre janelas — aí vira aba); senão na
+    /// janela onde ele já está, ou numa nova.
+    pub fn open_workspace(&mut self, id: &str, thread: Option<String>) {
+        let mine = self.data.active_workspace.as_deref() == Some(id);
+        if mine || !self.multi_window || self.data.active_workspace.is_none() {
+            if !mine {
+                self.switch_workspace(id);
+            }
+            if let Some(t) = thread {
+                self.reveal_thread(&t);
+            }
+            return;
+        }
+        self.eph.window_requests.push(crate::windows::Reveal { workspace: id.to_string(), thread });
+    }
+
+    /// Abre a thread agora, ou assim que a lista do workspace chegar.
+    pub fn reveal_thread(&mut self, id: &str) {
+        if self.data.thread(id).is_some() {
+            self.select_thread(id);
+        } else {
+            self.eph.select_after_load = Some(id.to_string());
+        }
+    }
+
+    /// Relê o que pede atenção em todos os workspaces (uma leitura por vez).
+    pub fn refresh_activity(&mut self) {
+        if self.data.activity_loading {
+            self.data.activity_dirty = true;
+            return;
+        }
+        self.data.activity_loading = true;
+        self.data.activity_dirty = false;
+        self.call("thread.activity", Value::Null, |app, r| {
+            app.data.activity_loading = false;
+            if let Ok(v) = r {
+                app.data.activity = serde_json::from_value(v).unwrap_or_default();
+            }
+            if app.data.activity_dirty {
+                app.refresh_activity();
+            }
+        });
     }
 
     /// Recarrega projetos e threads do workspace e importa sessões novas.
@@ -348,6 +457,11 @@ impl LazyApp {
             if let Some(sel) = app.state.selected.clone() {
                 if app.data.thread(&sel).is_none() {
                     app.state.selected = None;
+                }
+            }
+            if let Some(t) = app.eph.select_after_load.take() {
+                if app.data.thread(&t).is_some() {
+                    app.select_thread(&t);
                 }
             }
         });
@@ -412,7 +526,35 @@ impl LazyApp {
                     }
                 }
             }
-            app.data.transcripts.insert(tid, tr);
+            app.data.transcripts.insert(tid.clone(), tr);
+            app.eph.scroll_to_bottom = true;
+            app.load_pending_permission(&tid);
+        });
+    }
+
+    /// O pedido de permissão que chegou antes de a conversa ser aberta (o
+    /// histórico não o traz): sem ele, a thread "aguardando você" abre sem
+    /// ter o que responder.
+    fn load_pending_permission(&mut self, id: &str) {
+        let tid = id.to_string();
+        self.call("thread.pending-permission", json!({ "id": id }), move |app, r| {
+            let Ok(p) = r else { return };
+            let Some(request_id) = p["requestId"].as_str() else { return };
+            let Some(tr) = app.data.transcripts.get_mut(&tid) else { return };
+            if tr.pending_permission().is_some() {
+                return;
+            }
+            tr.apply(&json!({
+                "type": "control_request",
+                "request_id": request_id,
+                "request": {
+                    "subtype": "can_use_tool",
+                    "tool_name": p["toolName"],
+                    "input": p["input"],
+                    "tool_use_id": p["toolUseId"],
+                    "permission_suggestions": p["suggestions"],
+                },
+            }));
             app.eph.scroll_to_bottom = true;
         });
     }
@@ -546,6 +688,7 @@ impl LazyApp {
             events::THREAD_STATUS => {
                 let st = Status::parse(p["status"].as_str().unwrap_or(""));
                 self.data.set_status(&tid, st);
+                self.refresh_activity();
             }
             events::THREAD_UPDATED => {
                 if let Ok(t) = serde_json::from_value::<ThreadView>(p) {
@@ -553,6 +696,7 @@ impl LazyApp {
                         self.data.upsert(t);
                     }
                 }
+                self.refresh_activity();
             }
             events::AGENT_EXIT => {
                 if let Some(err) = p["stderr"].as_str().filter(|s| !s.trim().is_empty()) {
@@ -572,7 +716,10 @@ impl LazyApp {
             }
             events::STATE_CHANGED => match p["what"].as_str() {
                 Some("workspaces") => self.refresh_workspaces(false),
-                Some("threads") => self.refresh_threads(),
+                Some("threads") => {
+                    self.refresh_threads();
+                    self.refresh_activity();
+                }
                 Some("settings") => self.refresh_settings(),
                 _ => {}
             },
@@ -643,7 +790,16 @@ impl LazyApp {
     }
 
     fn thread_title(&self, id: &str) -> String {
-        self.data.thread(id).map(|t| t.thread.title.clone()).unwrap_or_else(|| t("app.thread"))
+        self.data
+            .thread(id)
+            .or_else(|| self.data.activity.iter().find(|t| t.thread.id == id))
+            .map(|t| t.thread.title.clone())
+            .unwrap_or_else(|| t("app.thread"))
+    }
+
+    /// Você está olhando para a thread (a janela tem o foco e ela está aberta).
+    fn looking_at(&self, tid: &str) -> bool {
+        self.focused && self.state.selected.as_deref() == Some(tid)
     }
 
     /// Avisa quando um turno termina numa thread que você não está olhando.
@@ -670,14 +826,49 @@ impl LazyApp {
         };
         let title = format!("✓ {}", self.thread_title(tid));
         self.attention(tid, &title, &body);
+        // terminou na sua frente: já está lida
+        if self.looking_at(tid) && self.data.thread(tid).is_some_and(|t| t.thread.unread) {
+            if let Some(t) = self.data.thread_mut(tid) {
+                t.thread.unread = false;
+            }
+            self.fire("thread.update", json!({ "id": tid, "unread": false }));
+        }
     }
 
     fn attention(&mut self, tid: &str, title: &str, body: &str) {
-        let looking = self.focused && self.state.selected.as_deref() == Some(tid);
         let notify = self.data.settings.as_ref().is_some_and(|s| s.notify_on_finish);
-        if !looking && notify {
+        // com várias janelas, todas recebem o evento: avisa a do workspace da
+        // thread, ou a principal se nenhuma janela a mostra
+        let mine = self.data.thread(tid).is_some();
+        let elsewhere = self.windows.iter().any(|c| c.app.data.thread(tid).is_some());
+        let owner = mine || (!self.is_child && !elsewhere);
+        if !self.looking_at(tid) && notify && owner {
             self.host.notify(title, body);
         }
+    }
+
+    /// `[⏸ 1 · ▶ 2 · ● 3] workspace — LazyAICode`: a barra de tarefas mostra o
+    /// que pede atenção neste workspace.
+    pub(crate) fn window_title(&self) -> String {
+        let name = self.data.active().map(|w| w.name.clone());
+        let ws = self.data.active_workspace.as_deref();
+        let counts = crate::views::activity::counts(self.data.activity.iter().filter(|t| t.thread.workspace_id.as_deref() == ws));
+        let mut parts = vec![];
+        for (n, sym) in [(counts.awaiting, "⏸"), (counts.running, "▶"), (counts.error, "!"), (counts.unread, "●")] {
+            if n > 0 {
+                parts.push(format!("{sym} {n}"));
+            }
+        }
+        let mut title = String::new();
+        if !parts.is_empty() {
+            title.push_str(&format!("[{}] ", parts.join(" · ")));
+        }
+        if let Some(n) = name {
+            title.push_str(&n);
+            title.push_str(" — ");
+        }
+        title.push_str("LazyAICode");
+        title
     }
 
     // ---------- desenho ----------
@@ -738,6 +929,12 @@ impl LazyApp {
         for cmd in std::mem::take(&mut self.eph.viewport) {
             crate::views::titlebar::apply_viewport(&ctx, cmd);
         }
+        let title = self.window_title();
+        if self.eph.last_title.as_deref() != Some(title.as_str()) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
+            self.eph.last_title = Some(title);
+        }
+        crate::windows::show(self, &ctx);
         let busy = self.data.threads.iter().any(|t| t.status == Status::Running) || !self.pending.is_empty();
         if busy || !self.toasts.is_empty() {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));

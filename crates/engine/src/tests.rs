@@ -197,6 +197,14 @@ async fn send_streams_agent_events_and_updates_the_thread() {
     assert_eq!(t["session_id"], json!("sess-1"));
     assert_eq!(t["title"], json!("faça algo"));
     assert_eq!(t["unread"], json!(true));
+    // terminou sem ser lida: aparece na atividade de todos os workspaces
+    let act = e.run("thread.activity", json!({})).await.unwrap();
+    let act = act.as_array().unwrap();
+    assert_eq!(act.len(), 1);
+    assert_eq!(act[0]["id"], json!(tid));
+    assert_eq!(act[0]["workspace_id"], w["id"]);
+    e.run("thread.update", json!({"id": tid, "unread": false})).await.unwrap();
+    assert_eq!(e.run("thread.activity", json!({})).await.unwrap(), json!([]));
     e.shutdown().await;
 }
 

@@ -79,6 +79,7 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui) {
                 if bar_icon(ui, &tk, icon::MAGNIFYING_GLASS, &format!("{} (Ctrl+K)", t("palette.title")), false).clicked() {
                     app.state.palette_open = true;
                 }
+                crate::views::activity::indicator(app, ui);
                 if !app.data.connected && app.data.connection_error.is_some() {
                     ui.label(RichText::new(format!("{} {}", icon::PLUGS, t("titlebar.disconnected"))).color(tk.p.red))
                         .on_hover_text(app.data.connection_error.clone().unwrap_or_default());
@@ -191,7 +192,12 @@ fn workspace_tabs(app: &mut LazyApp, ui: &mut egui::Ui) {
             }
         });
     }
-    if bar_icon(ui, &tk, icon::PLUS, &t("titlebar.openWorkspace"), false).clicked() {
+    let plus =
+        bar_icon(ui, &tk, icon::PLUS, &t(if app.multi_window { "titlebar.openWorkspaceWindow" } else { "titlebar.openWorkspace" }), false);
+    if app.multi_window {
+        // com janelas, o "+" lista os workspaces: cada um abre (ou foca) a janela dele
+        egui::Popup::menu(&plus).show(|ui| workspace_menu(app, ui));
+    } else if plus.clicked() {
         app.eph.picker_checked = app.state.open_workspaces.clone();
         app.state.picking_workspaces = true;
     }
@@ -200,6 +206,47 @@ fn workspace_tabs(app: &mut LazyApp, ui: &mut egui::Ui) {
     }
     if let Some(id) = close {
         app.close_workspace(&id);
+    }
+}
+
+fn workspace_menu(app: &mut LazyApp, ui: &mut egui::Ui) {
+    let tk = app.tokens;
+    ui.set_min_width(260.0);
+    let mut open = None;
+    for w in app.data.workspaces.clone() {
+        let here = app.data.active_workspace.as_deref() == Some(w.id.as_str());
+        let elsewhere = app.eph.other_windows.contains(&w.id);
+        let c =
+            crate::views::activity::counts(app.data.activity.iter().filter(|t| t.thread.workspace_id.as_deref() == Some(w.id.as_str())));
+        let mut label = w.name.clone();
+        if c.awaiting > 0 {
+            label.push_str(&format!("   {} {}", icon::PAUSE_CIRCLE, c.awaiting));
+        }
+        if c.running > 0 {
+            label.push_str(&format!("   {} {}", icon::CIRCLE_NOTCH, c.running));
+        }
+        if c.unread > 0 {
+            label.push_str(&format!("   {} {}", icon::CHECK_CIRCLE, c.unread));
+        }
+        let hint = if here {
+            t("activity.thisWindow")
+        } else if elsewhere {
+            t("titlebar.openInWindow")
+        } else {
+            widgets::short_path(&w.path)
+        };
+        let text = RichText::new(label).color(if here { tk.p.muted } else { tk.p.text });
+        let r = ui.add_enabled(!here, egui::Button::new(text).right_text(RichText::new(hint).color(tk.p.faint).size(tk.text_size - 2.0)));
+        if r.clicked() {
+            open = Some(w.id.clone());
+        }
+    }
+    ui.separator();
+    if ui.button(format!("{}  {}", icon::FOLDER_PLUS, t("titlebar.newWorkspace"))).clicked() {
+        app.state.new_workspace_open = true;
+    }
+    if let Some(id) = open {
+        app.open_workspace(&id, None);
     }
 }
 

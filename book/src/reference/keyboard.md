@@ -69,6 +69,8 @@
 | `F11` | `ui.window.fullscreen` | Toggle full screen |
 | `Ctrl+Q` | `ui.app.quit` | Quit |
 | `Ctrl+Shift+O` | `ui.workspace.new` | New workspace |
+| `Ctrl+Shift+D` | `ui.activity.toggle` | Sessions across all workspaces |
+| `Ctrl+Shift+T` | `ui.activity.next` | Go to the next session that needs attention |
 | `Ctrl+W` | `ui.workspace.close` | Close workspace tab |
 | `Ctrl+PageDown` | `ui.workspace.next` | Next workspace |
 | `Ctrl+PageUp` | `ui.workspace.prev` | Previous workspace |

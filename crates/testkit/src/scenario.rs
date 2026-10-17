@@ -544,7 +544,11 @@ fn threads(sw: &mut Sweep, ids: &Ids) {
     sw.ok("thread.mark-unread", json!({"id": id}));
     let g = sw.ok("thread.get", json!({"id": id}));
     sw.check(g["unread"] == json!(true) && g["bookmarked"] == json!(false), "unbookmark/mark-unread");
+    let act = sw.ok("thread.activity", json!({}));
+    sw.check(arr(&act).iter().any(|t| t["id"] == id), format!("thread.activity com a não lida: {}", short(&act)));
     sw.ok("thread.mark-read", json!({"id": id}));
+    let act = sw.ok("thread.activity", json!({}));
+    sw.check(!arr(&act).iter().any(|t| t["id"] == id), format!("thread.activity sem a lida: {}", short(&act)));
     let found = sw.ok("thread.search", json!({"query": "principal", "workspaceId": ids.ws}));
     sw.check(arr(&found).len() == 1, format!("thread.search: {}", short(&found)));
     sw.ok("thread.search", json!({"query": "", "archived": false}));

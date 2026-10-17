@@ -2,7 +2,7 @@
 
 > Gerado por `cargo xtask commands` — não edite à mão.
 
-São **518** comandos: 246 do motor (rodam na CLI, no canal de controle, no MCP e na UI) e 272 de tela (`ui.*`, só no app aberto, pelo `ui.run` do canal de controle). Parâmetros com `?` são opcionais.
+São **521** comandos: 247 do motor (rodam na CLI, no canal de controle, no MCP e na UI) e 274 de tela (`ui.*`, só no app aberto, pelo `ui.run` do canal de controle). Parâmetros com `?` são opcionais.
 
 ## Motor
 
@@ -305,6 +305,7 @@ São **518** comandos: 246 do motor (rodam na CLI, no canal de controle, no MCP 
 | `thread.last-message` 🔎 | Last agent message | `id` |  |
 | `thread.search` 🔎 | Search threads — Threads cujo título ou pasta contém o texto. | `query`, `workspaceId`?, `archived`? |  |
 | `thread.duplicate` | Duplicate thread — Uma thread nova no mesmo projeto, com o mesmo provedor, modelo e modo (conversa do zero). | `id`, `isolated`? |  |
+| `thread.activity` 🔎 | Threads needing attention |  |  |
 | `thread.count` 🔎 | Thread counts | `workspaceId`? |  |
 
 ### `workspace`
@@ -651,7 +652,9 @@ São **518** comandos: 246 do motor (rodam na CLI, no canal de controle, no MCP 
 |---|---|---|---|
 | `ui.workspace.new` | New workspace |  | `Ctrl+Shift+O` |
 | `ui.workspace.pick` | Which workspaces to open? |  |  |
-| `ui.workspace.open` | Open workspace | `id` |  |
+| `ui.workspace.open` | Open workspace — Abre o workspace: na janela onde ele já está, ou numa janela nova (no desktop); na web, numa aba. | `id` |  |
+| `ui.activity.toggle` | Sessions across all workspaces — Mostra / esconde as sessões de todos os workspaces que rodam, esperam você ou terminaram sem ser lidas. |  | `Ctrl+Shift+D` |
+| `ui.activity.next` | Go to the next session that needs attention — Abre a próxima sessão que espera você ou terminou sem ser lida, em qualquer workspace (na janela dele). |  | `Ctrl+Shift+T` |
 | `ui.workspace.close` | Close workspace tab |  | `Ctrl+W` |
 | `ui.workspace.next` | Next workspace |  | `Ctrl+PageDown` |
 | `ui.workspace.prev` | Previous workspace |  | `Ctrl+PageUp` |

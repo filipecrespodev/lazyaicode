@@ -35,6 +35,23 @@ pub fn inspect(app: &LazyApp) -> Value {
             "threads": app.data.threads.len(),
             "commands": app.data.commands.len(),
         },
+        "windows": {
+            "multi": app.multi_window,
+            "child": app.is_child,
+            "others": app.eph.other_windows,
+            "children": app.windows.iter().map(|c| json!({
+                "workspace": c.app.data.active_workspace,
+                "selected": c.app.state.selected,
+                "threads": c.app.data.threads.len(),
+            })).collect::<Vec<_>>(),
+        },
+        "activity": app.data.activity.iter().map(|t| json!({
+            "id": t.thread.id,
+            "title": t.thread.title,
+            "workspaceId": t.thread.workspace_id,
+            "status": t.status,
+            "unread": t.thread.unread,
+        })).collect::<Vec<_>>(),
         "editingTitle": app.eph.editing_title,
         "toasts": app.toasts.iter().map(|t| t.text.clone()).collect::<Vec<_>>(),
         "errors": app.toasts.iter().filter(|t| t.kind == crate::app::ToastKind::Error).map(|t| t.text.clone()).collect::<Vec<_>>(),

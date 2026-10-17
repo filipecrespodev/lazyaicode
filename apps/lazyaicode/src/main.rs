@@ -26,7 +26,7 @@ use lazyaicode_automation::backend::{run_engine, Backend, BoxFut};
 use lazyaicode_automation::{server, token};
 use lazyaicode_engine::{Engine, EngineOpts};
 use lazyaicode_protocol::{ErrorBody, Event};
-use lazyaicode_ui_egui::{Client, Inbox, LazyApp, UiMsg, WsClient};
+use lazyaicode_ui_egui::{Client, Inbox, LazyApp, NewWindow, UiMsg, WsClient};
 use serde_json::{json, Value};
 
 struct Args {
@@ -236,6 +236,11 @@ impl eframe::App for DesktopApp {
                 });
             }
         }
+        // a imagem chega como evento num quadro seguinte: com a janela parada,
+        // ninguém pediria esse quadro e a captura só sairia no próximo pedido
+        if !self.shot_waiters.is_empty() {
+            ctx.request_repaint_after(Duration::from_millis(16));
+        }
     }
 
     fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
@@ -253,6 +258,21 @@ fn icon() -> Option<egui::IconData> {
     let img = image::load_from_memory(include_bytes!("../../../assets/icons/128x128.png")).ok()?.to_rgba8();
     let (w, h) = img.dimensions();
     Some(egui::IconData { rgba: img.into_raw(), width: w, height: h })
+}
+
+/// Como toda janela do app nasce (a principal e as dos outros workspaces).
+fn window_builder(decorations: bool) -> egui::ViewportBuilder {
+    let mut b = egui::ViewportBuilder::default()
+        .with_title("LazyAICode")
+        .with_app_id("lazyaicode")
+        .with_inner_size([1280.0, 820.0])
+        .with_min_inner_size([640.0, 420.0])
+        .with_decorations(decorations)
+        .with_transparent(false);
+    if let Some(i) = icon() {
+        b = b.with_icon(Arc::new(i));
+    }
+    b
 }
 
 fn run() -> Result<(), String> {
@@ -319,16 +339,36 @@ fn run() -> Result<(), String> {
         });
     }
 
-    let mut viewport = egui::ViewportBuilder::default()
-        .with_title("LazyAICode")
-        .with_app_id("lazyaicode")
-        .with_inner_size([1280.0, 820.0])
-        .with_min_inner_size([640.0, 420.0])
-        .with_decorations(decorations)
-        .with_transparent(false);
-    if let Some(i) = icon() {
-        viewport = viewport.with_icon(Arc::new(i));
-    }
+    let viewport = window_builder(decorations);
+    // cada workspace a mais abre numa janela própria, no mesmo motor
+    let new_client: Box<dyn Fn() -> Box<dyn Client>> = match (&engine, &args.connect) {
+        (Some(e), _) => {
+            let (e, h, w) = (e.clone(), rt.handle().clone(), wake.clone());
+            Box::new(move || Box::new(local::LocalClient::new(e.clone(), h.clone(), w.clone())))
+        }
+        (None, Some(url)) => {
+            let token = args.token.clone().or_else(|| args.token_file.as_ref().and_then(|f| token::read(f).ok())).unwrap_or_default();
+            let (url, w) = (url.clone(), wake.clone());
+            Box::new(move || {
+                let w = w.clone();
+                Box::new(WsClient::connect(&url, &token, move || {
+                    if let Some(c) = w.get() {
+                        c.request_repaint()
+                    }
+                }))
+            })
+        }
+        (None, None) => return Err("sem motor".into()),
+    };
+    app.set_window_factory(Box::new(move || {
+        let inbox = Inbox::default();
+        NewWindow {
+            client: new_client(),
+            host: Box::new(host::DesktopHost { inbox: inbox.clone(), decorations }),
+            inbox,
+            builder: window_builder(decorations),
+        }
+    }));
     let options = eframe::NativeOptions { viewport, renderer: eframe::Renderer::Wgpu, ..Default::default() };
     let w = wake.clone();
     eframe::run_native(

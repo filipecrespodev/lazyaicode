@@ -72,8 +72,19 @@ fn open_selected(app: &mut LazyApp, ids: Vec<String>) {
         return;
     }
     let active = app.data.active_workspace.clone();
-    app.state.open_workspaces = ids.clone();
     app.state.picking_workspaces = false;
+    if app.multi_window {
+        // um por janela: o primeiro (ou o já aberto) fica nesta, os outros abrem a deles
+        let here = active.clone().filter(|a| ids.contains(a)).or_else(|| ids.first().cloned());
+        if let Some(h) = &here {
+            app.open_workspace(h, None);
+        }
+        for id in ids.iter().filter(|i| Some(*i) != here.as_ref()) {
+            app.open_workspace(id, None);
+        }
+        return;
+    }
+    app.state.open_workspaces = ids.clone();
     match active.filter(|a| ids.contains(a)) {
         Some(a) if !app.data.threads.is_empty() || !app.data.projects.is_empty() => {
             let _ = a;
@@ -149,7 +160,7 @@ pub fn new_workspace_modal(app: &mut LazyApp, ctx: &egui::Context) {
                             created_at: 0,
                         }));
                         let id = id.to_string();
-                        app.switch_workspace(&id);
+                        app.open_workspace(&id, None);
                     }
                 });
             }

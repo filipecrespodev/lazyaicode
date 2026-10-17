@@ -31,6 +31,12 @@ pub struct Data {
     pub active_workspace: Option<String>,
     pub projects: Vec<Project>,
     pub threads: Vec<ThreadView>,
+    /// `thread.activity`: o que roda, espera ou terminou sem ser lido em
+    /// todos os workspaces (para ver o que anda nos das outras janelas)
+    pub activity: Vec<ThreadView>,
+    pub activity_loading: bool,
+    /// chegou evento de status no meio da leitura: ler de novo
+    pub activity_dirty: bool,
     pub transcripts: HashMap<String, Transcript>,
     pub loading_transcript: HashSet<String>,
     /// `thread.diff-stats` por thread

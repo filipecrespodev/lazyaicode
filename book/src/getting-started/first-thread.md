@@ -19,6 +19,15 @@
 5. **Integrar.** Em uma thread isolada, **Integrar** aplica as mudanças como
    não commitadas no checkout principal, faz merge da branch, ou pede ao
    agente um PR.
+6. **Vários workspaces.** No desktop, cada workspace abre na sua própria
+   janela (o **+** da barra de título lista os workspaces; um que já está
+   aberto ganha o foco). O título da janela resume o que pede atenção nela
+   (`[⏸ 1 · ▶ 2 · ● 1] Loja — LazyAICode`: esperando você, rodando,
+   terminadas sem ler), e o contador ao lado da busca (`Ctrl+Shift+D`) lista
+   as sessões de **todos** os workspaces nesses três estados; clicar numa
+   leva à janela dela. `Ctrl+Shift+T` vai direto para a próxima que espera
+   você ou terminou sem ser lida. Fechar a janela principal mantém as outras;
+   `Ctrl+Q` fecha todas. Na versão web, os workspaces seguem em abas.
 
 Tudo isso também é comando: `Ctrl+K` abre a paleta com os mais de 500
 comandos do app, e os mesmos rodam pela [CLI](../automation/cli.md), pelo

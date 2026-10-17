@@ -14,6 +14,20 @@
   `●`/`•`/CJK.
 - **Textos traduzidos** (`t("area.chave")`, `tf` com `{placeholders}`).
 
+## Janelas
+
+Cada workspace tem a sua janela (`windows.rs`): a principal é dona das
+outras e as desenha como viewports imediatos do egui; cada uma é um
+`LazyApp` inteiro, com o próprio `Client` no mesmo motor. A casca entrega a
+fábrica (`set_window_factory`); sem ela (web, `--screenshot`) os workspaces
+ficam em abas. Pedidos de abrir um workspace (`open_workspace`) sobem para a
+principal, que foca a janela onde ele já está ou abre uma nova. Sem janelas
+de verdade (contexto de teste), as filhas rodam num contexto egui próprio,
+fora da tela — o teste `each_workspace_opens_in_its_own_window` dirige
+assim. `ui.inspect` mostra `windows` (as outras janelas e o que cada uma
+tem aberto) e `activity` (`thread.activity`: o que roda, espera ou terminou
+sem ser lido em todos os workspaces).
+
 ## Ver a tela sem abrir janela
 
 ```sh

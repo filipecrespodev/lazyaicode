@@ -388,6 +388,14 @@ fn table(ctx: &Ctx) -> Vec<(&'static str, Value, Expect)> {
         ("ui.thread.toggle-bookmark", e(), Y),
         ("ui.thread.toggle-bookmark", e(), Y),
         ("ui.thread.mark-unread", e(), Y),
+        // a não lida aparece na atividade; ir para a próxima a abre e a dá por lida
+        ("ui.activity.toggle", e(), Y),
+        (CHECK_INSPECT, json!({"path": "/activity/0/id", "equals": ctx.tid}), Y),
+        (CHECK_INSPECT, json!({"path": "/state/activityOpen", "equals": true}), Y),
+        ("ui.activity.toggle", e(), Y),
+        ("ui.activity.next", e(), Y),
+        (CHECK_INSPECT, json!({"path": "/activity", "equals": []}), Y),
+        ("ui.activity.next", e(), Fails("nada pede atenção")),
         ("ui.composer.focus", e(), Y),
         ("ui.composer.insert", json!({"text": "rascunho"}), Y),
         ("ui.composer.slash", json!({"name": "help"}), Y),
@@ -431,6 +439,10 @@ fn table(ctx: &Ctx) -> Vec<(&'static str, Value, Expect)> {
         ("ui.permission.always", e(), Y),
         (WAIT_PERMISSION, json!(false), Y),
         ("ui.thread.send", json!({"text": "pedir mais uma"}), Y),
+        (WAIT_PERMISSION, json!(true), Y),
+        // relida do histórico (aberta depois do pedido, de outra janela), a
+        // conversa ainda mostra o que responder
+        ("ui.debug.clear-caches", e(), Y),
         (WAIT_PERMISSION, json!(true), Y),
         ("ui.permission.deny", e(), Y),
         (WAIT_PERMISSION, json!(false), Y),
@@ -799,4 +811,114 @@ fn every_screen_command_runs_end_to_end() {
     let Harness { rt, engine, .. } = h;
     rt.block_on(engine.shutdown());
     assert!(failures.is_empty(), "{} comandos de tela falharam:\n{}", failures.len(), failures.join("\n"));
+}
+
+/// Janela por workspace: com a fábrica de janelas (como no desktop), abrir
+/// outro workspace abre outra janela no mesmo motor em vez de outra aba;
+/// abrir de novo foca a que já existe; a atividade de todos os workspaces
+/// aparece em qualquer janela e "ir para a próxima" abre a thread na janela
+/// do workspace dela; os workspaces abertos ficam gravados para a próxima vez.
+#[cfg(unix)]
+#[test]
+fn each_workspace_opens_in_its_own_window() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let gitconfig = root.join("gitconfig");
+    std::fs::write(&gitconfig, "[user]\n\tname = Demo\n\temail = demo@example.com\n[init]\n\tdefaultBranch = main\n").unwrap();
+    std::env::set_var("GIT_CONFIG_GLOBAL", &gitconfig);
+    std::env::set_var("GIT_CONFIG_NOSYSTEM", "1");
+    let (ws1, ws2) = (root.join("um"), root.join("dois"));
+    lazyaicode_testkit::init_repo(&ws1.join("app"));
+    lazyaicode_testkit::init_repo(&ws2.join("api"));
+    let png = root.join("p.png");
+    image::RgbaImage::from_pixel(2, 2, image::Rgba([0, 0, 0, 255])).save(&png).unwrap();
+
+    lazyaicode_engine::workspace::init_platform();
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+    let engine = {
+        let _g = rt.enter();
+        Engine::new(EngineOpts { data_dir: Some(root.join("data")), ephemeral: false })
+    };
+    let (w1, w2, t2) = rt.block_on(async {
+        let a = engine.run("workspace.create", json!({"path": ws1.to_string_lossy()})).await.unwrap();
+        let b = engine.run("workspace.create", json!({"path": ws2.to_string_lossy()})).await.unwrap();
+        let projects = engine.run("project.list", json!({"workspaceId": b["id"]})).await.unwrap();
+        let t =
+            engine.run("thread.create", json!({"workspaceId": b["id"], "projectId": projects[0]["id"], "isolated": false})).await.unwrap();
+        (a["id"].as_str().unwrap().to_string(), b["id"].as_str().unwrap().to_string(), t["id"].as_str().unwrap().to_string())
+    });
+    // da última vez, os dois estavam abertos (o segundo primeiro)
+    rt.block_on(engine.run("prefs.set", json!({"key": "ui.openWorkspaces", "value": [w2, w1]}))).unwrap();
+
+    let wake: local::Wake = Arc::new(OnceLock::new());
+    let ctx = egui::Context::default();
+    let _ = wake.set(ctx.clone());
+    lazyaicode_ui_egui::install(&ctx);
+    let inbox = Inbox::default();
+    let host = TestHost { inbox: inbox.clone(), png: png.clone(), folder: ws1.clone() };
+    let mut app = LazyApp::new(Box::new(local::LocalClient::new(engine.clone(), rt.handle().clone(), wake.clone())), Box::new(host), inbox);
+    let (e2, h2, wk2, png2, f2) = (engine.clone(), rt.handle().clone(), wake.clone(), png.clone(), ws1.clone());
+    app.set_window_factory(Box::new(move || {
+        let inbox = Inbox::default();
+        lazyaicode_ui_egui::NewWindow {
+            client: Box::new(local::LocalClient::new(e2.clone(), h2.clone(), wk2.clone())),
+            host: Box::new(TestHost { inbox: inbox.clone(), png: png2.clone(), folder: f2.clone() }),
+            inbox,
+            builder: egui::ViewportBuilder::default().with_title("LazyAICode"),
+        }
+    }));
+    let mut h = Harness {
+        app,
+        ctx,
+        rt,
+        engine,
+        tex: lazyaicode_render_cpu::Textures::new(),
+        frame: 0,
+        shots: std::env::var_os("UI_E2E_SHOTS").map(PathBuf::from),
+        last_png: None,
+    };
+    // dois workspaces: a abertura pergunta quais abrir
+    let booted = h.frames_until(30, |h| h.inspect()["state"]["pickingWorkspaces"] == json!(true) && !h.app.has_pending());
+    assert_eq!(booted, Ok(true), "{}", h.inspect());
+    assert_eq!(h.inspect()["windows"]["multi"], json!(true));
+
+    // o primeiro fica nesta janela (ela estava vazia)
+    assert!(matches!(h.run("ui.workspace.open", json!({"id": w1})), Outcome::Ok));
+    let s = h.inspect();
+    assert_eq!(s["workspace"]["id"], json!(w1), "{s}");
+    assert_eq!(s["windows"]["children"], json!([]));
+    assert_eq!(s["state"]["openWorkspaces"], json!([w1]), "a lista da última vez não vira aba: {s}");
+
+    // o segundo abre outra janela, com as threads dele
+    assert!(matches!(h.run("ui.workspace.open", json!({"id": w2})), Outcome::Ok));
+    let opened = h.frames_until(20, |h| h.inspect()["windows"]["children"][0]["threads"] == json!(1));
+    assert_eq!(opened, Ok(true), "{}", h.inspect());
+    let s = h.inspect();
+    assert_eq!(s["workspace"]["id"], json!(w1), "a janela principal continua no primeiro: {s}");
+    assert_eq!(s["state"]["openWorkspaces"], json!([w1]), "nada de aba nova: {s}");
+    assert_eq!(s["windows"]["children"][0]["workspace"], json!(w2));
+
+    // abrir de novo foca a janela que já existe
+    assert!(matches!(h.run("ui.workspace.open", json!({"id": w2})), Outcome::Ok));
+    assert_eq!(h.inspect()["windows"]["children"].as_array().map(Vec::len), Some(1));
+    let _ = h.frames_until(2, |_| false);
+    assert_eq!(h.inspect()["windows"]["others"], json!([w2]));
+
+    // terminou sem ser lida no outro workspace: a principal vê e leva até ela
+    h.rt.block_on(h.engine.run("thread.update", json!({"id": t2, "unread": true}))).unwrap();
+    let seen = h.frames_until(10, |h| h.inspect()["activity"][0]["id"] == json!(t2));
+    assert_eq!(seen, Ok(true), "{}", h.inspect());
+    assert!(matches!(h.run("ui.activity.next", json!({})), Outcome::Ok));
+    let s = h.inspect();
+    assert_eq!(s["workspace"]["id"], json!(w1), "{s}");
+    assert_eq!(s["windows"]["children"][0]["selected"], json!(t2), "a thread abre na janela do workspace dela: {s}");
+    let read = h.frames_until(10, |h| h.inspect()["activity"] == json!([]));
+    assert_eq!(read, Ok(true), "abrir a thread a dá por lida: {}", h.inspect());
+
+    // na próxima abertura, os dois vêm marcados
+    let prefs = h.rt.block_on(h.engine.run("prefs.get", json!({}))).unwrap();
+    assert_eq!(prefs["ui.openWorkspaces"], json!([w1, w2]), "{prefs}");
+
+    let Harness { rt, engine, .. } = h;
+    rt.block_on(engine.shutdown());
 }
