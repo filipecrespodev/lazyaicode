@@ -2490,7 +2490,7 @@ checksum = "20870f649af7073d53e38067b2a84312175d56ea15217e1b15bc83506ec50afb"
 
 [[package]]
 name = "lazyaicode"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "arboard",
  "base64 0.22.1",
@@ -2516,7 +2516,7 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-agent"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2535,7 +2535,7 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-automation"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "futures-util",
  "lazyaicode-doc",
@@ -2552,7 +2552,7 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-cli"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "clap",
  "lazyaicode-automation",
@@ -2568,7 +2568,7 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-doc"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "proptest",
  "serde",
@@ -2577,7 +2577,7 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-engine"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2603,7 +2603,7 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-git"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2623,21 +2623,21 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-i18n"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "lazyaicode-platform"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "dirs",
 ]
 
 [[package]]
 name = "lazyaicode-protocol"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "proptest",
  "serde",
@@ -2646,7 +2646,7 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-render-cpu"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "egui",
  "egui_kittest",
@@ -2658,7 +2658,7 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-term"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "proptest",
  "vt100",
@@ -2666,7 +2666,7 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-testkit"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "serde_json",
  "tempfile",
@@ -2674,7 +2674,7 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-ui-egui"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64 0.22.1",
  "egui",
@@ -2695,7 +2695,7 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-web"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64 0.22.1",
  "eframe",
@@ -2712,7 +2712,7 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-wsl-agent"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "git2",
  "lazyaicode-engine",
@@ -6058,7 +6058,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "lazyaicode-engine",
  "lazyaicode-i18n",

@@ -566,7 +566,7 @@ checksum = "20870f649af7073d53e38067b2a84312175d56ea15217e1b15bc83506ec50afb"
 
 [[package]]
 name = "lazyaicode-agent"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -583,7 +583,7 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-doc"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -606,7 +606,7 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-git"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -624,14 +624,14 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-platform"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "dirs",
 ]
 
 [[package]]
 name = "lazyaicode-protocol"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -639,7 +639,7 @@ dependencies = [
 
 [[package]]
 name = "lazyaicode-term"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "vt100",
 ]
