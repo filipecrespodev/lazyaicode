@@ -10,6 +10,9 @@ runtime: org.freedesktop.Platform
 runtime-version: "24.08"
 sdk: org.freedesktop.Sdk
 command: lazyaicode
+# o flatpak-builder do Ubuntu 22.04 chama o appstream-compose, que o SDK 24.08
+# não tem mais; o metainfo é instalado do mesmo jeito
+appstream-compose: false
 finish-args:
   - --share=ipc
   - --share=network

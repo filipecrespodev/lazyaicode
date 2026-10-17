@@ -57,5 +57,6 @@ assets = [
 ]
 
 [package.metadata.wix]
-include = ["../../packaging/windows/wix/main.wxs"]
+# relativo à raiz: o xtask roda o cargo wix de lá, e o main.wxs usa caminhos da raiz
+include = ["packaging/windows/wix/main.wxs"]
 eula = false
