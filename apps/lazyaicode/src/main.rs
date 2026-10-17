@@ -13,7 +13,8 @@
 
 mod host;
 mod local;
-#[cfg(test)]
+// os testes de ponta a ponta usam scripts de shell (o `claude` falso)
+#[cfg(all(test, unix))]
 mod ui_e2e;
 
 use std::net::SocketAddr;
