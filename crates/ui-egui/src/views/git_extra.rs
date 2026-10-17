@@ -9,6 +9,7 @@ use egui::{Align, Layout, RichText, Sense, Stroke, Vec2};
 use egui_phosphor::regular as icon;
 use lazyaicode_doc::diff::{parse_patch, DiffLine, LineKind};
 use lazyaicode_i18n::{t, tf};
+use lazyaicode_protocol::{ParamInfo, ParamType};
 use serde_json::{json, Value};
 
 use crate::app::{LazyApp, ToastKind};
@@ -934,6 +935,7 @@ pub fn register(add: &mut crate::views::git::AddUiCmd<'_>) {
         "gitHistory.blame",
         "git",
         None,
+        vec![ParamInfo::req("path", ParamType::String)],
         Box::new(move |app, p| {
             p_of(app)?;
             open(app, Win::Blame { path: file(p)?, data: None });
@@ -945,6 +947,7 @@ pub fn register(add: &mut crate::views::git::AddUiCmd<'_>) {
         "gitHistory.fileHistory",
         "git",
         None,
+        vec![ParamInfo::req("path", ParamType::String)],
         Box::new(move |app, p| {
             p_of(app)?;
             open(app, Win::FileHistory { path: file(p)?, data: None });
@@ -956,6 +959,7 @@ pub fn register(add: &mut crate::views::git::AddUiCmd<'_>) {
         "gitHistory.compare",
         "git",
         None,
+        vec![ParamInfo::opt("a", ParamType::String).doc("padrão: a branch atual"), ParamInfo::req("b", ParamType::String)],
         Box::new(move |app, p| {
             let path = p_of(app)?;
             let cur = app
@@ -976,6 +980,7 @@ pub fn register(add: &mut crate::views::git::AddUiCmd<'_>) {
         "gitIntegrations.newPr",
         "git",
         None,
+        vec![],
         Box::new(move |app, _| {
             let path = p_of(app)?;
             let head =
@@ -990,6 +995,7 @@ pub fn register(add: &mut crate::views::git::AddUiCmd<'_>) {
         "gitInteractiveRebase.title",
         "git",
         None,
+        vec![ParamInfo::opt("sha", ParamType::String).doc("padrão: o commit selecionado")],
         Box::new(move |app, p| {
             let path = p_of(app)?;
             let from = p
@@ -1007,6 +1013,7 @@ pub fn register(add: &mut crate::views::git::AddUiCmd<'_>) {
         "gitGraph.search",
         "git",
         Some("Ctrl+Shift+H"),
+        vec![ParamInfo::opt("query", ParamType::String)],
         Box::new(move |app, p| {
             p_of(app)?;
             let query = p.get("query").and_then(Value::as_str).unwrap_or("").to_string();
@@ -1022,6 +1029,7 @@ pub fn register(add: &mut crate::views::git::AddUiCmd<'_>) {
             label,
             "git",
             None,
+            vec![],
             Box::new(move |app, _| {
                 p_of(app)?;
                 open(
@@ -1041,6 +1049,7 @@ pub fn register(add: &mut crate::views::git::AddUiCmd<'_>) {
         "Reload conflicts",
         "git",
         None,
+        vec![],
         Box::new(move |app, _| {
             let path = p_of(app)?;
             load_conflicts(app, &path);
@@ -1052,6 +1061,7 @@ pub fn register(add: &mut crate::views::git::AddUiCmd<'_>) {
         "gitLfs.pull",
         "git",
         None,
+        vec![],
         Box::new(move |app, _| {
             p_of(app)?;
             let id = repo_id(app).unwrap_or_default();

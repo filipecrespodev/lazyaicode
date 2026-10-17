@@ -115,12 +115,21 @@ fn build() -> Vec<UiCmd> {
     .params(vec![ParamInfo::req("command", ParamType::String), ParamInfo::opt("params", ParamType::Json)]);
     r.add("ui.state.set", "Change screen state", "ui", None, |app, p| {
         let mut cur = serde_json::to_value(&app.state).map_err(|e| e.to_string())?;
-        if let (Some(obj), Some(patch)) = (cur.as_object_mut(), p.get("patch").and_then(Value::as_object)) {
+        let patch = p.get("patch").and_then(Value::as_object).ok_or("`patch` precisa ser um objeto")?;
+        if let Some(obj) = cur.as_object_mut() {
+            // um campo com nome errado não pode passar calado
+            if let Some(k) = patch.keys().find(|k| !obj.contains_key(*k)) {
+                return Err(format!("campo desconhecido no estado da tela: {k}"));
+            }
             for (k, v) in patch {
                 obj.insert(k.clone(), v.clone());
             }
         }
         app.state = serde_json::from_value(cur).map_err(|e| e.to_string())?;
+        // o diálogo de confirmação vive fora do estado serializável
+        if app.state.dialog.is_none() {
+            app.eph.confirm = None;
+        }
         ok()
     })
     .params(vec![ParamInfo::req("patch", ParamType::Json)])
@@ -204,6 +213,23 @@ fn build() -> Vec<UiCmd> {
         app.state.settings_tab = SettingsTab::About;
         ok()
     });
+    r.add("ui.dialog.confirm", "dialogs.confirm", "view", None, |app, _| {
+        if crate::views::dialogs::resolve(app, true) {
+            ok()
+        } else {
+            Err(t("dialogs.none"))
+        }
+    })
+    .doc("Confirma o diálogo aberto (apagar thread, descartar mudanças…), como o botão Confirmar.");
+    r.add("ui.dialog.cancel", "app.cancel", "view", None, |app, _| {
+        let had_result = app.eph.palette_result.take().is_some();
+        if crate::views::dialogs::resolve(app, false) || had_result {
+            ok()
+        } else {
+            Err(t("dialogs.none"))
+        }
+    })
+    .doc("Fecha o diálogo aberto sem fazer nada, ou a janela de resultado da paleta.");
     r.add("ui.toasts.clear", "Dismiss notifications", "view", None, |app, _| {
         app.toasts.clear();
         ok()
@@ -293,18 +319,15 @@ fn build() -> Vec<UiCmd> {
             if let Ok(t) = serde_json::from_value(v) {
                 app.data.upsert(t);
             }
-            app.toast(t(if archived { "thread.threadArchived" } else { "Thread restored" }), ToastKind::Ok);
+            app.toast(t(if archived { "thread.threadArchived" } else { "thread.threadRestored" }), ToastKind::Ok);
         });
         ok()
     });
     r.add("ui.thread.delete", "Delete thread", "thread", Some("Ctrl+Shift+Delete"), |app, _| {
         let id = sel(app)?;
         let title = app.selected().map(|t| t.thread.title.clone()).unwrap_or_default();
-        app.eph.confirm = Some((
-            format!("Delete \"{title}\"? Its isolated checkout and branch are removed too."),
-            "thread.delete".into(),
-            json!({ "id": id }),
-        ));
+        app.eph.confirm =
+            Some((lazyaicode_i18n::tf("thread.confirmDelete", &[("title", &title)]), "thread.delete".into(), json!({ "id": id })));
         app.state.dialog = Some("confirm".into());
         ok()
     });
@@ -322,7 +345,7 @@ fn build() -> Vec<UiCmd> {
             None => app.data.drafts.remove(&id).unwrap_or_default(),
         };
         if text.trim().is_empty() && app.data.attachments.get(&id).is_none_or(Vec::is_empty) {
-            return Err("Mensagem vazia".into());
+            return Err(t("uiErrors.emptyMessage"));
         }
         app.send_message(&id, text.trim().to_string());
         ok()
@@ -440,10 +463,10 @@ fn build() -> Vec<UiCmd> {
             .get(&id)
             .and_then(|b| b["branch"].as_str().map(str::to_string))
             .or_else(|| app.selected().and_then(|t| t.thread.branch.clone()));
-        copy(app, b.ok_or("sem branch")?)
+        copy(app, b.ok_or_else(|| t("uiErrors.noBranch"))?)
     });
     r.add("ui.thread.copy-session", "Copy session id", "thread", None, |app, _| {
-        let s = app.selected().and_then(|t| t.thread.session_id.clone()).ok_or("sem sessão")?;
+        let s = app.selected().and_then(|t| t.thread.session_id.clone()).ok_or_else(|| t("uiErrors.noSession"))?;
         copy(app, s)
     });
     r.add("ui.thread.copy-transcript", "Copy conversation as Markdown", "thread", None, |app, _| {
@@ -541,14 +564,14 @@ fn build() -> Vec<UiCmd> {
     r.add("ui.workspace.open", "Open workspace", "workspace", None, |app, p| {
         let id = str_param(p, "id")?;
         if app.data.workspace(&id).is_none() {
-            return Err("Workspace não encontrado".into());
+            return Err(t("uiErrors.workspaceNotFound"));
         }
         app.switch_workspace(&id);
         ok()
     })
     .params(vec![ParamInfo::req("id", ParamType::String)]);
     r.add("ui.workspace.close", "Close workspace tab", "workspace", Some("Ctrl+W"), |app, _| {
-        let id = app.data.active_workspace.clone().ok_or("nenhum workspace")?;
+        let id = app.data.active_workspace.clone().ok_or_else(|| t("uiErrors.noWorkspace"))?;
         app.close_workspace(&id);
         ok()
     });
@@ -557,7 +580,7 @@ fn build() -> Vec<UiCmd> {
     for n in 1..=9usize {
         let sc = format!("Ctrl+Alt+{n}");
         r.add(&format!("ui.workspace.switch-{n}"), &format!("Workspace {n}"), "workspace", Some(&sc), move |app, _| {
-            let id = app.state.open_workspaces.get(n - 1).cloned().ok_or("sem workspace nessa posição")?;
+            let id = app.state.open_workspaces.get(n - 1).cloned().ok_or_else(|| t("uiErrors.noWorkspaceAt"))?;
             app.switch_workspace(&id);
             ok()
         });
@@ -674,7 +697,7 @@ fn build() -> Vec<UiCmd> {
     r.add("ui.terminal.clear", "Clear terminal", "terminal", Some("Ctrl+Shift+K"), |app, _| crate::terminal::write_current(app, "\x0c"));
     r.add("ui.terminal.interrupt", "Send Ctrl+C", "terminal", None, |app, _| crate::terminal::write_current(app, "\x03"));
     r.add("ui.terminal.copy-screen", "Copy terminal screen", "terminal", None, |app, _| {
-        let text = crate::terminal::current(app).map(|t| t.term.text()).ok_or("terminal fechado")?;
+        let text = crate::terminal::current(app).map(|t| t.term.text()).ok_or_else(|| t("uiErrors.terminalClosed"))?;
         copy(app, text)
     });
     r.add("ui.terminal.write", "Type into terminal", "terminal", None, |app, p| {
@@ -706,8 +729,13 @@ fn build() -> Vec<UiCmd> {
     });
 
     more(&mut r);
-    crate::views::git::register_ui_commands(&mut |id: &str, label: &str, group: &'static str, shortcut: Option<&str>, run: RunBox| {
-        r.add(id, label, group, shortcut, run);
+    crate::views::git::register_ui_commands(&mut |id: &str,
+                                                  label: &str,
+                                                  group: &'static str,
+                                                  shortcut: Option<&str>,
+                                                  params: Vec<ParamInfo>,
+                                                  run: RunBox| {
+        r.add(id, label, group, shortcut, run).params(params);
     });
     r.0
 }
@@ -746,7 +774,7 @@ fn more(r: &mut Reg) {
                 _ => None,
             })
             .last()
-            .ok_or("nenhuma resposta ainda")?;
+            .ok_or_else(|| t("uiErrors.noReply"))?;
         copy(app, text)
     });
     r.add("ui.thread.copy-id", "Copy thread id", "thread", None, |app, _| {
@@ -825,7 +853,7 @@ fn more(r: &mut Reg) {
                 _ => None,
             })
             .last()
-            .ok_or("nenhuma mensagem")?;
+            .ok_or_else(|| t("uiErrors.noMessage"))?;
         app.data.drafts.insert(id, last);
         app.eph.focus_composer = true;
         ok()
@@ -841,8 +869,12 @@ fn more(r: &mut Reg) {
     .params(vec![ParamInfo::req("path", ParamType::String)]);
     r.add("ui.review.discard-file", "Revert file to the thread base", "review", None, |app, p| {
         let id = sel(app)?;
-        let path =
-            p.get("path").and_then(Value::as_str).map(str::to_string).or_else(|| app.state.review_file.clone()).ok_or("nenhum arquivo")?;
+        let path = p
+            .get("path")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| app.state.review_file.clone())
+            .ok_or_else(|| t("uiErrors.noFile"))?;
         app.eph.confirm = Some((
             lazyaicode_i18n::tf("gitWorking.confirmDiscard", &[("path", &path)]),
             "thread.discard-file".into(),
@@ -854,7 +886,7 @@ fn more(r: &mut Reg) {
     .params(vec![ParamInfo::opt("path", ParamType::String)]);
     r.add("ui.review.copy-patch", "Copy the file diff", "review", None, |app, _| {
         let id = sel(app)?;
-        let path = app.state.review_file.clone().ok_or("nenhum arquivo")?;
+        let path = app.state.review_file.clone().ok_or_else(|| t("uiErrors.noFile"))?;
         let patch = app
             .data
             .changes
@@ -864,11 +896,11 @@ fn more(r: &mut Reg) {
                     .as_array()
                     .and_then(|f| f.iter().find(|x| x["path"] == path.as_str()).and_then(|x| x["patch"].as_str().map(str::to_string)))
             })
-            .ok_or("sem diff")?;
+            .ok_or_else(|| t("uiErrors.noDiff"))?;
         copy(app, patch)
     });
     r.add("ui.repo.open-current", "Open the repository screen", "workspace", None, |app, _| {
-        let pid = app.current_project().map(|p| p.id.clone()).ok_or("nenhum projeto")?;
+        let pid = app.current_project().map(|p| p.id.clone()).ok_or_else(|| t("uiErrors.noProject"))?;
         run_ui(app, "ui.repo.open", &json!({ "projectId": pid }))
     });
     r.add("ui.repo.close", "repoScreen.close", "workspace", None, |app, _| {
@@ -1119,7 +1151,7 @@ fn set_thread(app: &mut LazyApp, cmd: &str, p: Value) -> Result<Value, String> {
 
 /// Nova thread no projeto dado, no da thread aberta ou no primeiro do workspace.
 pub fn new_thread(app: &mut LazyApp, p: &Value, isolated: bool) -> Result<Value, String> {
-    let ws = app.data.active_workspace.clone().ok_or("nenhum workspace aberto")?;
+    let ws = app.data.active_workspace.clone().ok_or_else(|| t("uiErrors.noWorkspace"))?;
     let project = p
         .get("projectId")
         .and_then(Value::as_str)

@@ -45,9 +45,9 @@ pub fn step_file(app: &mut LazyApp, d: i32) -> Result<Value, String> {
 
 pub fn toggle_seen(app: &mut LazyApp, path: Option<String>) -> Result<Value, String> {
     let id = app.state.selected.clone().ok_or_else(|| t("palette.needsThread"))?;
-    let path = path.or_else(|| app.state.review_file.clone()).ok_or("nenhum arquivo")?;
+    let path = path.or_else(|| app.state.review_file.clone()).ok_or_else(|| t("uiErrors.noFile"))?;
     let f = files(app);
-    let file = f.iter().find(|x| x["path"] == path.as_str()).ok_or("arquivo fora da revisão")?;
+    let file = f.iter().find(|x| x["path"] == path.as_str()).ok_or_else(|| t("uiErrors.fileNotInReview"))?;
     let seen = file["seen"].as_bool().unwrap_or(false);
     let fp = if seen { Value::Null } else { file["fingerprint"].clone() };
     set_seen(app, &id, vec![json!([path, fp])]);

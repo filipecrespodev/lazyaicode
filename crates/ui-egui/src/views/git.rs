@@ -10,6 +10,7 @@ use egui_phosphor::regular as icon;
 use lazyaicode_doc::diff::parse_patch;
 use lazyaicode_doc::graph::{self, GraphRow};
 use lazyaicode_i18n::{t, tf};
+use lazyaicode_protocol::{ParamInfo, ParamType};
 use serde_json::{json, Value};
 
 use crate::app::{LazyApp, ToastKind};
@@ -297,15 +298,19 @@ fn path_of(app: &LazyApp) -> Result<String, String> {
 }
 
 /// Quem registra um comando de tela: `(id, rótulo, grupo, atalho, run)`.
-pub type AddUiCmd<'a> = dyn FnMut(&str, &str, &'static str, Option<&str>, crate::commands::RunBox) + 'a;
+/// Os parâmetros entram na descrição do comando (paleta, MCP, canal de
+/// controle) e são conferidos antes de `run`.
+pub type AddUiCmd<'a> = dyn FnMut(&str, &str, &'static str, Option<&str>, Vec<ParamInfo>, crate::commands::RunBox) + 'a;
 
 pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
     crate::views::git_extra::register(add);
-    let mut a = |id: &str, label: &str, sc: Option<&str>, f: crate::commands::RunBox| add(id, label, "git", sc, f);
+    let mut a =
+        |id: &str, label: &str, sc: Option<&str>, params: Vec<ParamInfo>, f: crate::commands::RunBox| add(id, label, "git", sc, params, f);
     a(
         "ui.git.refresh",
         "gitPanel.refresh",
         None,
+        vec![],
         Box::new(|app, _| {
             let p = path_of(app)?;
             refresh(app, &p, true);
@@ -316,6 +321,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.fetch",
         "gitRemote.fetch",
         Some("Ctrl+Shift+F"),
+        vec![],
         Box::new(|app, _| {
             let p = path_of(app)?;
             op(app, &p, "fetch", "git.remote.fetch", json!({}), Some(t("gitRemote.fetched")));
@@ -326,6 +332,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.pull",
         "gitRemote.pull",
         Some("Ctrl+Shift+L"),
+        vec![],
         Box::new(|app, _| {
             let p = path_of(app)?;
             op(app, &p, "pull", "git.pull.pull", json!({}), Some(t("gitRemote.pulled")));
@@ -337,6 +344,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
             id,
             if force { "gitRemote.forcePush" } else { "gitRemote.push" },
             if force { None } else { Some("Ctrl+Shift+U") },
+            vec![],
             Box::new(move |app, _| {
                 let p = path_of(app)?;
                 let b = current_branch(app, &p).ok_or_else(|| t("gitRemote.detached"))?;
@@ -358,6 +366,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
             id,
             label,
             None,
+            vec![],
             Box::new(move |app, _| {
                 let p = path_of(app)?;
                 op(app, &p, label, method, json!({}), None);
@@ -369,6 +378,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.discard-all",
         "gitWorking.discardAll",
         None,
+        vec![],
         Box::new(|app, _| {
             let p = path_of(app)?;
             let id = rid(app, &p).unwrap_or_default();
@@ -381,8 +391,17 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.commit",
         "gitWorking.commit",
         None,
-        Box::new(|app, _| {
+        vec![ParamInfo::opt("summary", ParamType::String), ParamInfo::opt("body", ParamType::String)],
+        Box::new(|app, params| {
             let p = path_of(app)?;
+            // sem `summary`, usa a mensagem já digitada na tela
+            let r = repo_mut(app, &p);
+            if let Some(s) = params.get("summary").and_then(Value::as_str) {
+                r.summary = s.to_string();
+            }
+            if let Some(b) = params.get("body").and_then(Value::as_str) {
+                r.body = b.to_string();
+            }
             commit(app, &p);
             Ok(Value::Null)
         }),
@@ -391,6 +410,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.amend.toggle",
         "gitWorking.amend",
         None,
+        vec![],
         Box::new(|app, _| {
             let p = path_of(app)?;
             let r = repo_mut(app, &p);
@@ -402,6 +422,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.ai-message",
         "gitAi.generate",
         Some("Ctrl+Shift+M"),
+        vec![],
         Box::new(|app, _| {
             let p = path_of(app)?;
             ai_message(app, &p);
@@ -412,6 +433,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.stash",
         "gitStash.save",
         None,
+        vec![ParamInfo::opt("message", ParamType::String)],
         Box::new(|app, p| {
             let path = path_of(app)?;
             let msg = p.get("message").and_then(Value::as_str).map(str::to_string);
@@ -428,6 +450,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
             id,
             label,
             None,
+            vec![ParamInfo::opt("index", ParamType::Int)],
             Box::new(move |app, p| {
                 let path = path_of(app)?;
                 let index = p.get("index").and_then(Value::as_u64).unwrap_or(0);
@@ -440,6 +463,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.new-branch",
         "gitBranches.newBranch",
         Some("Ctrl+Shift+B"),
+        vec![ParamInfo::opt("name", ParamType::String)],
         Box::new(|app, p| {
             let path = path_of(app)?;
             match p.get("name").and_then(Value::as_str) {
@@ -453,6 +477,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.checkout",
         "gitBranches.checkout",
         None,
+        vec![ParamInfo::req("name", ParamType::String).doc("branch local ou remota (origin/x)")],
         Box::new(|app, p| {
             let path = path_of(app)?;
             let name = p.get("name").and_then(Value::as_str).ok_or("falta `name`")?.to_string();
@@ -464,6 +489,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.merge",
         "gitBranches.merge",
         None,
+        vec![ParamInfo::req("name", ParamType::String)],
         Box::new(|app, p| {
             let path = path_of(app)?;
             let name = p.get("name").and_then(Value::as_str).ok_or("falta `name`")?.to_string();
@@ -475,6 +501,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.rebase-onto",
         "gitBranches.rebaseOnto",
         None,
+        vec![ParamInfo::req("name", ParamType::String)],
         Box::new(|app, p| {
             let path = path_of(app)?;
             let name = p.get("name").and_then(Value::as_str).ok_or("falta `name`")?.to_string();
@@ -486,6 +513,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.delete-branch",
         "gitBranches.delete",
         None,
+        vec![ParamInfo::req("name", ParamType::String)],
         Box::new(|app, p| {
             let path = path_of(app)?;
             let name = p.get("name").and_then(Value::as_str).ok_or("falta `name`")?.to_string();
@@ -503,6 +531,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.select-working",
         "gitWorking.title",
         None,
+        vec![],
         Box::new(|app, _| {
             let path = path_of(app)?;
             repo_mut(app, &path).selected = Some(WORKING.into());
@@ -513,6 +542,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.select-commit",
         "Select commit",
         None,
+        vec![ParamInfo::req("sha", ParamType::String)],
         Box::new(|app, p| {
             let path = path_of(app)?;
             let sha = p.get("sha").and_then(Value::as_str).ok_or("falta `sha`")?.to_string();
@@ -524,6 +554,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.load-more",
         "gitGraph.loadMore",
         None,
+        vec![],
         Box::new(|app, _| {
             let path = path_of(app)?;
             if let Some(s) = repo(app, &path).and_then(|r| r.next_skip) {
@@ -536,6 +567,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
         "ui.git.toggle-refs",
         "gitPanel.toggleRefs",
         None,
+        vec![],
         Box::new(|app, _| {
             let path = path_of(app)?;
             let r = repo_mut(app, &path);
@@ -559,6 +591,7 @@ pub fn register_ui_commands(add: &mut AddUiCmd<'_>) {
             id,
             label,
             None,
+            vec![ParamInfo::opt("sha", ParamType::String).doc("padrão: o commit selecionado")],
             Box::new(move |app, p| {
                 let path = path_of(app)?;
                 let sha = p

@@ -214,7 +214,10 @@ pub fn show(app: &mut LazyApp, ctx: &egui::Context) {
                         ui.label(widgets::faint(&tk, t("palette.empty")));
                         ui.label(widgets::faint(&tk, t("palette.tip")));
                     }
-                    egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
+                    // a área lembra o tamanho do quadro anterior: sem uma altura mínima a
+                    // lista ficava presa no tamanho de uma busca anterior (2 linhas para `>`)
+                    let want = (n as f32 * (tk.row_h + 4.0 + ui.spacing().item_spacing.y)).min(420.0);
+                    egui::ScrollArea::vertical().max_height(420.0).min_scrolled_height(want).show(ui, |ui| {
                         for (i, e) in list.iter().enumerate() {
                             let on = i == app.eph.palette_index;
                             let (ic, title, detail, sc) = match e {

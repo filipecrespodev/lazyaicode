@@ -360,6 +360,10 @@ impl LazyApp {
     }
 
     pub fn select_thread(&mut self, id: &str) {
+        if self.state.selected.as_deref() != Some(id) {
+            // o título em edição era da thread anterior: ao perder o foco, viraria o desta
+            self.eph.editing_title = None;
+        }
         self.state.selected = Some(id.to_string());
         self.state.repo_project = None;
         self.eph.scroll_to_bottom = true;

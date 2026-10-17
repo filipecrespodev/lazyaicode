@@ -47,13 +47,13 @@ pub fn current(app: &LazyApp) -> Option<&TermView> {
 }
 
 pub fn write_current(app: &mut LazyApp, text: &str) -> Result<Value, String> {
-    let id = current(app).map(|t| t.id.clone()).ok_or("terminal fechado")?;
+    let id = current(app).map(|t| t.id.clone()).ok_or_else(|| lazyaicode_i18n::t("uiErrors.terminalClosed"))?;
     app.fire("terminal.write", json!({ "termId": id, "data": text }));
     Ok(Value::Null)
 }
 
 pub fn restart_current(app: &mut LazyApp) -> Result<Value, String> {
-    let path = app.current_path().ok_or("sem pasta")?;
+    let path = app.current_path().ok_or_else(|| lazyaicode_i18n::t("uiErrors.noFolder"))?;
     let id = term_id_for(&path);
     app.fire("terminal.kill", json!({ "termId": id }));
     app.terms.remove(&id);

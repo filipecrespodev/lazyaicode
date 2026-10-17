@@ -8,7 +8,7 @@ use crate::views::widgets;
 
 pub fn show(app: &mut LazyApp, ctx: &egui::Context) {
     crate::views::git::prompts(app, ctx);
-    let Some((text, cmd, params)) = app.eph.confirm.clone() else { return };
+    let Some((text, _, _)) = app.eph.confirm.clone() else { return };
     let tk = app.tokens;
     let mut done: Option<bool> = None;
     let modal = egui::Modal::new(egui::Id::new("confirm")).show(ctx, |ui| {
@@ -30,22 +30,29 @@ pub fn show(app: &mut LazyApp, ctx: &egui::Context) {
         done = Some(false);
     }
     if let Some(yes) = done {
-        app.eph.confirm = None;
-        app.state.dialog = None;
-        if yes {
-            let selected = app.state.selected.clone();
-            let deleting_selected = cmd == "thread.delete" && params["id"].as_str() == selected.as_deref();
-            app.call(&cmd, params, move |app, r| match r {
-                Ok(_) => {
-                    if deleting_selected {
-                        app.state.selected = None;
-                    }
-                    app.toast("✓", ToastKind::Ok);
-                    crate::views::git::refresh_current(app);
-                    app.refresh_threads();
-                }
-                Err(e) => app.toast_err(&e.message),
-            });
-        }
+        resolve(app, yes);
     }
+}
+
+/// Fecha o diálogo de confirmação aberto; com `yes`, roda o comando dele.
+/// Devolve se havia um diálogo.
+pub fn resolve(app: &mut LazyApp, yes: bool) -> bool {
+    let Some((_, cmd, params)) = app.eph.confirm.take() else { return false };
+    app.state.dialog = None;
+    if yes {
+        let selected = app.state.selected.clone();
+        let deleting_selected = cmd == "thread.delete" && params["id"].as_str() == selected.as_deref();
+        app.call(&cmd, params, move |app, r| match r {
+            Ok(_) => {
+                if deleting_selected {
+                    app.state.selected = None;
+                }
+                app.toast("✓", ToastKind::Ok);
+                crate::views::git::refresh_current(app);
+                app.refresh_threads();
+            }
+            Err(e) => app.toast_err(&e.message),
+        });
+    }
+    true
 }

@@ -2,7 +2,7 @@
 
 > Gerado por `cargo xtask commands` — não edite à mão.
 
-São **516** comandos: 246 do motor (rodam na CLI, no canal de controle, no MCP e na UI) e 270 de tela (`ui.*`, só no app aberto, pelo `ui.run` do canal de controle). Parâmetros com `?` são opcionais.
+São **518** comandos: 246 do motor (rodam na CLI, no canal de controle, no MCP e na UI) e 272 de tela (`ui.*`, só no app aberto, pelo `ui.run` do canal de controle). Parâmetros com `?` são opcionais.
 
 ## Motor
 
@@ -383,12 +383,12 @@ São **516** comandos: 246 do motor (rodam na CLI, no canal de controle, no MCP 
 
 | Comando | Descrição | Parâmetros | Atalho |
 |---|---|---|---|
-| `ui.git.blame` | Blame |  |  |
-| `ui.git.file-history` | File history |  |  |
-| `ui.git.compare` | Compare |  |  |
+| `ui.git.blame` | Blame | `path` |  |
+| `ui.git.file-history` | File history | `path` |  |
+| `ui.git.compare` | Compare | `a`?, `b` |  |
 | `ui.git.open-pr` | New pull request |  |  |
-| `ui.git.interactive-rebase` | Interactive rebase |  |  |
-| `ui.git.search` | Search commits |  | `Ctrl+Shift+H` |
+| `ui.git.interactive-rebase` | Interactive rebase | `sha`? |  |
+| `ui.git.search` | Search commits | `query`? | `Ctrl+Shift+H` |
 | `ui.git.worktrees` | Worktrees |  |  |
 | `ui.git.remotes` | Remotes |  |  |
 | `ui.git.submodules` | Submodules |  |  |
@@ -407,30 +407,30 @@ São **516** comandos: 246 do motor (rodam na CLI, no canal de controle, no MCP 
 | `ui.git.rebase-abort` | Abort |  |  |
 | `ui.git.worktree-prune` | Clean up missing |  |  |
 | `ui.git.discard-all` | discard all |  |  |
-| `ui.git.commit` | Commit |  |  |
+| `ui.git.commit` | Commit | `summary`?, `body`? |  |
 | `ui.git.amend.toggle` | Amend commit |  |  |
 | `ui.git.ai-message` | Write the message with AI |  | `Ctrl+Shift+M` |
-| `ui.git.stash` | Stash |  |  |
-| `ui.git.stash-pop` | Pop stash |  |  |
-| `ui.git.stash-apply` | Apply |  |  |
-| `ui.git.stash-drop` | Drop |  |  |
-| `ui.git.new-branch` | New branch |  | `Ctrl+Shift+B` |
-| `ui.git.checkout` | Check out |  |  |
-| `ui.git.merge` | Merge into current |  |  |
-| `ui.git.rebase-onto` | Rebase {other} onto {target} |  |  |
-| `ui.git.delete-branch` | Delete branch |  |  |
+| `ui.git.stash` | Stash | `message`? |  |
+| `ui.git.stash-pop` | Pop stash | `index`? |  |
+| `ui.git.stash-apply` | Apply | `index`? |  |
+| `ui.git.stash-drop` | Drop | `index`? |  |
+| `ui.git.new-branch` | New branch | `name`? | `Ctrl+Shift+B` |
+| `ui.git.checkout` | Check out | `name` |  |
+| `ui.git.merge` | Merge into current | `name` |  |
+| `ui.git.rebase-onto` | Rebase {other} onto {target} | `name` |  |
+| `ui.git.delete-branch` | Delete branch | `name` |  |
 | `ui.git.select-working` | Local changes |  |  |
-| `ui.git.select-commit` | Select commit |  |  |
+| `ui.git.select-commit` | Select commit | `sha` |  |
 | `ui.git.load-more` | Load more commits |  |  |
 | `ui.git.toggle-refs` | Branches panel |  |  |
-| `ui.git.commit.copy-sha` | Copy commit SHA |  |  |
-| `ui.git.commit.checkout` | Check out this commit |  |  |
-| `ui.git.commit.cherry-pick` | Cherry-pick |  |  |
-| `ui.git.commit.revert` | Revert |  |  |
-| `ui.git.commit.reset-mixed` | Reset here (keep changes) |  |  |
-| `ui.git.commit.reset-hard` | Hard (discards all changes) |  |  |
-| `ui.git.commit.branch-here` | Create branch here |  |  |
-| `ui.git.commit.tag-here` | Create tag here |  |  |
+| `ui.git.commit.copy-sha` | Copy commit SHA | `sha`? |  |
+| `ui.git.commit.checkout` | Check out this commit | `sha`? |  |
+| `ui.git.commit.cherry-pick` | Cherry-pick | `sha`? |  |
+| `ui.git.commit.revert` | Revert | `sha`? |  |
+| `ui.git.commit.reset-mixed` | Reset here (keep changes) | `sha`? |  |
+| `ui.git.commit.reset-hard` | Hard (discards all changes) | `sha`? |  |
+| `ui.git.commit.branch-here` | Create branch here | `sha`? |  |
+| `ui.git.commit.tag-here` | Create tag here | `sha`? |  |
 
 ### `help`
 
@@ -625,6 +625,8 @@ São **516** comandos: 246 do motor (rodam na CLI, no canal de controle, no MCP 
 | `ui.sidebar.filter` | Filter threads | `text`? |  |
 | `ui.sidebar.collapse-all` | Collapse all groups |  |  |
 | `ui.sidebar.expand-all` | Expand all groups |  |  |
+| `ui.dialog.confirm` | Confirm — Confirma o diálogo aberto (apagar thread, descartar mudanças…), como o botão Confirmar. |  |  |
+| `ui.dialog.cancel` | Cancel — Fecha o diálogo aberto sem fazer nada, ou a janela de resultado da paleta. |  |  |
 | `ui.toasts.clear` | Dismiss notifications |  |  |
 | `ui.sidebar.clear-filter` | Clear |  |  |
 | `ui.sidebar.show-all` | Show every thread |  |  |
