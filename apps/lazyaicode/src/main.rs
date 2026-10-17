@@ -13,6 +13,8 @@
 
 mod host;
 mod local;
+#[cfg(test)]
+mod ui_e2e;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;

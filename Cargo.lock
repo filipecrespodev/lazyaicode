@@ -2505,10 +2505,12 @@ dependencies = [
  "lazyaicode-platform",
  "lazyaicode-protocol",
  "lazyaicode-render-cpu",
+ "lazyaicode-testkit",
  "lazyaicode-ui-egui",
  "log",
  "rfd",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 
