@@ -8,3 +8,4 @@
 /packaging/out
 *.profraw
 .DS_Store
+/.claude/worktrees

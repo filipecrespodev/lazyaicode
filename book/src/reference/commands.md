@@ -225,14 +225,14 @@ São **518** comandos: 246 do motor (rodam na CLI, no canal de controle, no MCP 
 |---|---|---|---|
 | `settings.get` 🔎 | Settings — Preferências, binário do Claude encontrado e pastas do app. |  |  |
 | `settings.save` | Save settings | `settings` |  |
-| `settings.default-model` | Muda uma preferência. | `value` |  |
-| `settings.default-permission-mode` | Muda uma preferência. | `value` |  |
-| `settings.send-with-modifier` | Muda uma preferência. | `value` |  |
-| `settings.notify-on-finish` | Muda uma preferência. | `value` |  |
-| `settings.sound-on-finish` | Muda uma preferência. | `value` |  |
-| `settings.default-provider` | Muda uma preferência. | `value` |  |
-| `settings.default-skip-permissions` | Muda uma preferência. | `value` |  |
-| `settings.language` | Language — Muda uma preferência. | `value` |  |
+| `settings.default-model` | Set default model — Muda uma preferência. | `value` |  |
+| `settings.default-permission-mode` | Set default permission mode — Muda uma preferência. | `value` |  |
+| `settings.send-with-modifier` | Set send with modifier — Muda uma preferência. | `value` |  |
+| `settings.notify-on-finish` | Set notify on finish — Muda uma preferência. | `value` |  |
+| `settings.sound-on-finish` | Set sound on finish — Muda uma preferência. | `value` |  |
+| `settings.default-provider` | Set default provider — Muda uma preferência. | `value` |  |
+| `settings.default-skip-permissions` | Set default skip permissions — Muda uma preferência. | `value` |  |
+| `settings.language` | Set language — Muda uma preferência. | `value` |  |
 | `prefs.get` 🔎 | Read a preference — Preferência da interface ou do cliente git (`theme`, `sshKeys`, `signCommits`…); sem `key`, todas. | `key`? |  |
 | `prefs.set` | Change a preference — Grava uma preferência; `value: null` apaga. | `key`, `value`? |  |
 | `prefs.list` 🔎 | Preference keys |  |  |

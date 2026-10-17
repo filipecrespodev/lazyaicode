@@ -435,24 +435,31 @@ pub fn register(r: &mut Registry) {
         },
     ));
     for (cid, label, hide) in [("workspace.ignore", "Hide a folder", true), ("workspace.unignore", "Show a hidden folder", false)] {
-        r.add(Spec::new(cid, label, "workspace").params(vec![p::s("id"), p::path("path")]).run(move |e, v| async move {
-            #[derive(Deserialize)]
-            struct P {
-                id: String,
-                path: String,
-            }
-            let p: P = parse(v)?;
-            let w = e.workspace(&p.id)?;
-            // a comparação é por caminho absoluto: `docs` vale como `<workspace>/docs`
-            let path =
-                if Path::new(&p.path).is_absolute() { p.path } else { Path::new(&w.path).join(&p.path).to_string_lossy().to_string() };
-            let mut ignored = w.ignored_paths;
-            ignored.retain(|x| *x != path);
-            if hide {
-                ignored.push(path);
-            }
-            e.run("workspace.update", json!({ "id": p.id, "ignoredPaths": ignored })).await
-        }));
+        r.add(
+            Spec::new(cid, label, "workspace")
+                .params(vec![p::s("id"), p::s("path").doc("absoluto, ou relativo à pasta do workspace")])
+                .run(move |e, v| async move {
+                    #[derive(Deserialize)]
+                    struct P {
+                        id: String,
+                        path: String,
+                    }
+                    let p: P = parse(v)?;
+                    let w = e.workspace(&p.id)?;
+                    // a comparação é por caminho absoluto: `docs` vale como `<workspace>/docs`
+                    let path = if Path::new(&p.path).is_absolute() {
+                        p.path
+                    } else {
+                        Path::new(&w.path).join(&p.path).to_string_lossy().to_string()
+                    };
+                    let mut ignored = w.ignored_paths;
+                    ignored.retain(|x| *x != path);
+                    if hide {
+                        ignored.push(path);
+                    }
+                    e.run("workspace.update", json!({ "id": p.id, "ignoredPaths": ignored })).await
+                }),
+        );
     }
     r.add(Spec::new("project.get", "Project", "project").params(vec![p::s("id")]).read_only().run(|e, v| async move {
         let Id { id } = parse(v)?;

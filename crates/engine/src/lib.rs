@@ -203,6 +203,7 @@ impl Engine {
     pub async fn run(&self, id: &str, params: Value) -> Result<Value> {
         let spec = registry().get(id).ok_or_else(|| EngineError::UnknownCommand(id.to_string()))?;
         lazyaicode_protocol::check_params(&spec.info.params, &params).map_err(EngineError::BadParams)?;
+        check_absolute_paths(&spec.info, &params)?;
         let Some(run) = spec.run.clone() else {
             return Err(EngineError::Disabled(format!("{id} não tem implementação neste motor")));
         };
@@ -311,6 +312,36 @@ impl Engine {
     pub(crate) fn view(&self, t: &Thread) -> ThreadView {
         ThreadView { status: self.status_of(&t.id), thread: t.clone() }
     }
+}
+
+/// Parâmetros que são caminhos no disco além dos de tipo `path` (o gerador
+/// dos comandos git só conhece texto).
+const PATH_PARAMS: &[(&str, &str)] = &[("git.repo.open", "path"), ("thread.set-options", "addDirs")];
+
+/// Um caminho relativo seria resolvido a partir da pasta onde o processo foi
+/// aberto — um `git.path.commit-all {path: "../x"}` commitava no repositório
+/// em volta do app. Todo caminho que entra precisa ser absoluto (`""` segue
+/// valendo onde o comando dá sentido a ele, como `claudeDir`).
+fn check_absolute_paths(info: &CommandInfo, params: &Value) -> Result<()> {
+    let is_path = |name: &str, ty: &lazyaicode_protocol::ParamType| {
+        matches!(ty, lazyaicode_protocol::ParamType::Path) || PATH_PARAMS.contains(&(info.id.as_str(), name))
+    };
+    for p in info.params.iter().filter(|p| is_path(&p.name, &p.ty)) {
+        let values: Vec<&str> = match params.get(&p.name) {
+            Some(Value::String(s)) => vec![s.as_str()],
+            Some(Value::Array(a)) => a.iter().filter_map(Value::as_str).collect(),
+            _ => vec![],
+        };
+        if let Some(rel) = values.into_iter().find(|v| !v.is_empty() && !is_absolute(v)) {
+            return Err(EngineError::BadParams(format!("`{}` precisa ser um caminho absoluto: {rel}", p.name)));
+        }
+    }
+    Ok(())
+}
+
+/// Absoluto na plataforma, ou um caminho do WSL (`\\wsl.localhost\…`).
+fn is_absolute(p: &str) -> bool {
+    std::path::Path::new(p).is_absolute() || p.starts_with("\\\\") || (cfg!(windows) && p.starts_with('/'))
 }
 
 /// Roda trabalho bloqueante (git, disco) fora das threads do runtime.

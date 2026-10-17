@@ -314,3 +314,26 @@ async fn line_staging_puts_only_the_picked_lines_in_the_index() {
     let staged = String::from_utf8_lossy(&staged.stdout).to_string();
     assert!(staged.contains("+dois") && !staged.contains("+tres"), "{staged}");
 }
+
+/// Caminho relativo seria resolvido a partir da pasta do processo: um
+/// `git.path.commit-all {path: "../x"}` commitava no repositório onde o app
+/// (ou o teste) foi aberto. Todo caminho que entra precisa ser absoluto.
+#[tokio::test(flavor = "multi_thread")]
+async fn relative_paths_are_refused_instead_of_resolved_against_the_process_cwd() {
+    let tmp = tempfile::tempdir().unwrap();
+    let e = engine(tmp.path());
+    for (id, params) in [
+        ("git.path.commit-all", json!({"path": "../../../etc/passwd", "message": "x"})),
+        ("git.path.status", json!({"path": "."})),
+        ("git.repo.open", json!({"path": "."})),
+        ("account.status", json!({"claudeDir": "../conta"})),
+        ("workspace.create", json!({"path": "."})),
+        ("terminal.spawn", json!({"termId": "t", "cwd": "..", "cols": 80, "rows": 24})),
+        ("system.read-image", json!({"path": "img.png"})),
+    ] {
+        let r = e.run(id, params).await;
+        assert!(matches!(r, Err(EngineError::BadParams(_))), "{id} aceitou caminho relativo: {r:?}");
+    }
+    let r = e.run("thread.set-options", json!({"id": "x", "addDirs": ["rel"]})).await;
+    assert!(matches!(r, Err(EngineError::BadParams(_))), "addDirs relativo: {r:?}");
+}
