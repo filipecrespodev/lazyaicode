@@ -31,6 +31,14 @@ AppImage e cria o comando `lazyaicode`:
 curl -fsSL https://raw.githubusercontent.com/filipecrespodev/lazyaicode/main/scripts/install.sh | sh
 ```
 
+### Linux: Wayland e X11
+
+Numa sessão Wayland com XWayland (GNOME, KDE), a janela abre pelo X11. No
+Wayland, uma janela coberta por outra pode ficar congelada por dezenas de
+segundos depois de voltar à frente, sem responder a clique nem a
+redimensionar. Para usar o Wayland assim mesmo, rode com
+`LAZYAICODE_WAYLAND=1`.
+
 ## Do código-fonte
 
 ```sh

@@ -381,7 +381,14 @@ fn run() -> Result<(), String> {
         let inbox = Inbox::default();
         NewWindow { client: new_client(vid), host: Box::new(host_for(inbox.clone())), inbox, builder: window_builder(decorations) }
     }));
-    let options = eframe::NativeOptions { viewport, renderer: eframe::Renderer::Wgpu, ..Default::default() };
+    let mut options = eframe::NativeOptions { viewport, renderer: eframe::Renderer::Wgpu, ..Default::default() };
+    #[cfg(target_os = "linux")]
+    if prefer_x11(|k| std::env::var(k).ok()) {
+        options.event_loop_builder = Some(Box::new(|b| {
+            use winit::platform::x11::EventLoopBuilderExtX11;
+            b.with_x11();
+        }));
+    }
     let w = wake.clone();
     eframe::run_native(
         "LazyAICode",
@@ -393,6 +400,18 @@ fn run() -> Result<(), String> {
         }),
     )
     .map_err(|e| e.to_string())
+}
+
+/// No Linux, janelas pelo XWayland quando há um. No Wayland, o winit 0.30
+/// só desenha o próximo quadro de uma janela depois que o compositor
+/// responde ao pedido de quadro anterior, sem prazo: coberta por outra
+/// janela, a resposta não vem e, mesmo descoberta, às vezes demora dezenas
+/// de segundos — a janela fica congelada, sem clique nem redimensionar.
+/// `LAZYAICODE_WAYLAND=1` volta ao Wayland.
+#[cfg(any(target_os = "linux", test))]
+fn prefer_x11(env: impl Fn(&str) -> Option<String>) -> bool {
+    let set = |k: &str| env(k).is_some_and(|v| !v.is_empty());
+    set("WAYLAND_DISPLAY") && set("DISPLAY") && env("LAZYAICODE_WAYLAND").as_deref() != Some("1")
 }
 
 fn main() {
@@ -408,6 +427,18 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn linux_prefers_xwayland_when_there_is_one() {
+        let env = |pairs: &'static [(&'static str, &'static str)]| move |k: &str| pairs.iter().find(|p| p.0 == k).map(|p| p.1.to_string());
+        assert!(super::prefer_x11(env(&[("WAYLAND_DISPLAY", "wayland-0"), ("DISPLAY", ":0")])));
+        // sem XWayland, ou já no X11: deixa o winit escolher
+        assert!(!super::prefer_x11(env(&[("WAYLAND_DISPLAY", "wayland-0")])));
+        assert!(!super::prefer_x11(env(&[("WAYLAND_DISPLAY", "wayland-0"), ("DISPLAY", "")])));
+        assert!(!super::prefer_x11(env(&[("DISPLAY", ":0")])));
+        // pedido explícito de Wayland
+        assert!(!super::prefer_x11(env(&[("WAYLAND_DISPLAY", "wayland-0"), ("DISPLAY", ":0"), ("LAZYAICODE_WAYLAND", "1")])));
+    }
+
     #[test]
     fn engine_and_screen_commands_together_pass_500_without_collisions() {
         let engine = lazyaicode_engine::commands();

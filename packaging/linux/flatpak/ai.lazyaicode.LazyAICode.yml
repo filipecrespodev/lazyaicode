@@ -17,7 +17,8 @@ finish-args:
   - --share=ipc
   - --share=network
   - --socket=wayland
-  - --socket=fallback-x11
+  # x11 e não fallback-x11: o app prefere o XWayland (ver prefer_x11 em apps/lazyaicode/src/main.rs)
+  - --socket=x11
   - --device=dri
   - --filesystem=home
   - --talk-name=org.freedesktop.Flatpak
