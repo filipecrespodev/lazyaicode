@@ -1564,8 +1564,17 @@ fn commit_details(app: &mut LazyApp, ui: &mut egui::Ui, path: &str, sha: &str) {
 // ---------- Árvore ----------
 
 struct TreeOverview {
-    nodes: Vec<(Pos2, usize, String, String)>,
+    nodes: Vec<TreeNode>,
     edges: Vec<(Pos2, Pos2, usize)>,
+}
+
+struct TreeNode {
+    pos: Pos2,
+    color: usize,
+    label: String,
+    summary: String,
+    author: String,
+    email: String,
 }
 
 /// Visão geral: só os commits que importam (pontas de ref, merges, pontos
@@ -1624,7 +1633,15 @@ fn build_overview(r: &Repo) -> TreeOverview {
         let sha = c["sha"].as_str().unwrap_or("").to_string();
         let label = ref_names.get(sha.as_str()).cloned().unwrap_or_else(|| c["shortSha"].as_str().unwrap_or("").to_string());
         pos.insert(sha.clone(), p);
-        nodes.push((p, gr.color, label, c["summary"].as_str().unwrap_or("").to_string()));
+        let text = |k: &str| c[k].as_str().unwrap_or("").to_string();
+        nodes.push(TreeNode {
+            pos: p,
+            color: gr.color,
+            label,
+            summary: text("summary"),
+            author: text("authorName"),
+            email: text("authorEmail"),
+        });
     }
     let mut edges = Vec::new();
     for ((sha, parents), gr) in pairs.iter().zip(&rows) {
@@ -1676,21 +1693,26 @@ pub fn tree(app: &mut LazyApp, ui: &mut egui::Ui, path: &str) {
                     ));
                 }
             }
-            for (pos, c, label, summary) in &ov.nodes {
-                p.circle_filled(*pos, 5.0, lane_color(&tk, *c));
-                let r =
-                    ui.interact(Rect::from_center_size(*pos, Vec2::splat(12.0)), ui.id().with(label).with(pos.y as i64), Sense::hover());
-                r.on_hover_text(summary);
+            for n in &ov.nodes {
+                // a foto do autor, com um anel na cor do ramo
+                author_face(app, ui, n.pos, 9.0, &n.author, &n.email);
+                p.circle_stroke(n.pos, 10.0, Stroke::new(2.0, lane_color(&tk, n.color)));
+                let r = ui.interact(
+                    Rect::from_center_size(n.pos, Vec2::splat(20.0)),
+                    ui.id().with(&n.label).with(n.pos.y as i64),
+                    Sense::hover(),
+                );
+                r.on_hover_text(format!("{}\n{}", n.summary, n.author));
                 let mut job = egui::text::LayoutJob::single_section(
-                    label.clone(),
+                    n.label.clone(),
                     egui::TextFormat { font_id: egui::FontId::proportional(12.0), color: tk.p.text, ..Default::default() },
                 );
                 job.wrap = egui::text::TextWrapping::truncate_at_width(160.0);
                 let g = p.layout_job(job);
-                p.galley(*pos + Vec2::new(10.0, -7.0), g, tk.p.text);
+                p.galley(n.pos + Vec2::new(15.0, -7.0), g, tk.p.text);
             }
             // o tamanho do que foi desenhado
-            let max_y = ov.nodes.iter().map(|n| n.0.y).fold(0.0f32, f32::max);
+            let max_y = ov.nodes.iter().map(|n| n.pos.y).fold(0.0f32, f32::max);
             ui.allocate_rect(Rect::from_min_max(Pos2::new(-20.0, -20.0), Pos2::new(1200.0, max_y + 40.0)), Sense::hover());
         });
     });
