@@ -51,7 +51,7 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
         let margin = ((avail - width) / 2.0).max(24.0).min((avail - width).max(0.0));
         let col = Col { left: ui.cursor().left() + margin, width };
         if rows.is_empty() {
-            col.row(ui, &tk, Avatar::Gap, |ui| {
+            col.row(ui, &tk, "hello", Avatar::Gap, |ui| {
                 if app.data.loading_transcript.contains(&id) {
                     ui.horizontal(|ui| {
                         ui.spinner();
@@ -86,19 +86,19 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
                 if n > 0 {
                     ui.add_space(12.0);
                 }
-                col.row(ui, &tk, Avatar::Person(&user), |ui| crate::views::transcript::user_message(app, ui, key, text, images));
+                col.row(ui, &tk, key, Avatar::Person(&user), |ui| crate::views::transcript::user_message(app, ui, key, text, images));
             } else {
                 if head {
                     ui.add_space(4.0);
                 }
                 let avatar = if head { Avatar::Agent } else { Avatar::Gap };
-                col.row(ui, &tk, avatar, |ui| crate::views::transcript::item(app, ui, &id, &it));
+                col.row(ui, &tk, it.key(), avatar, |ui| crate::views::transcript::item(app, ui, &id, &it));
             }
             let h = ui.cursor().top() - top;
             app.eph.row_heights.entry(id.clone()).or_default().insert(it.key().to_string(), (s, h));
         }
         if th.status == Status::Running {
-            col.row(ui, &tk, Avatar::Gap, |ui| {
+            col.row(ui, &tk, "working", Avatar::Gap, |ui| {
                 ui.horizontal(|ui| {
                     ui.spinner();
                     ui.label(widgets::muted(&tk, t("thread.working")));
@@ -108,7 +108,7 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
             });
         }
         ui.add_space(8.0);
-        col.row(ui, &tk, Avatar::Person(&user), |ui| crate::views::composer::show(app, ui, th));
+        col.row(ui, &tk, "composer", Avatar::Person(&user), |ui| crate::views::composer::show(app, ui, th));
         ui.add_space(32.0);
         if stick {
             ui.scroll_to_cursor(Some(Align::BOTTOM));
@@ -158,11 +158,13 @@ struct Col {
 
 impl Col {
     /// Uma linha da conversa: avatar (ou a margem dele) e o conteúdo, num
-    /// filho de largura fixa, recortado na coluna.
-    fn row(self, ui: &mut egui::Ui, tk: &crate::theme::Tokens, avatar: Avatar, body: impl FnOnce(&mut egui::Ui)) {
+    /// filho de largura fixa, recortado na coluna. `salt` dá a cada linha um
+    /// id próprio: sem ele, todas teriam o mesmo, e o que guarda estado pelo
+    /// id (as larguras das colunas de uma tabela em Markdown) se misturaria.
+    fn row(self, ui: &mut egui::Ui, tk: &crate::theme::Tokens, salt: &str, avatar: Avatar, body: impl FnOnce(&mut egui::Ui)) {
         let top = ui.cursor().top();
         let rect = egui::Rect::from_min_size(egui::pos2(self.left, top), Vec2::new(self.width, f32::INFINITY));
-        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(Layout::left_to_right(Align::Min)));
+        let mut child = ui.new_child(egui::UiBuilder::new().id_salt(salt).max_rect(rect).layout(Layout::left_to_right(Align::Min)));
         let clip = ui.clip_rect();
         child.set_clip_rect(egui::Rect::from_x_y_ranges(self.left - 2.0..=self.left + self.width + 2.0, clip.y_range()));
         // avatar (ou o vão dele) e 12 px até o conteúdo, sem o espaçamento do egui
@@ -216,8 +218,8 @@ mod tests {
     use lazyaicode_doc::transcript::Transcript;
     use serde_json::json;
 
-    /// Formas do último de alguns quadros da conversa com `turns` turnos.
-    fn shapes(turns: usize) -> usize {
+    /// O último de alguns quadros da conversa com uma resposta por texto.
+    fn last_frame(replies: &[String]) -> Vec<egui::epaint::ClippedShape> {
         let mut app = LazyApp::new(Box::new(crate::MockClient::default()), Box::new(crate::NoHost), crate::Inbox::default());
         let th: ThreadView = serde_json::from_value(json!({
             "id": "t1", "project_id": "p1", "workspace_id": "w1", "title": "t", "created_at": 0, "updated_at": 0,
@@ -226,14 +228,13 @@ mod tests {
         }))
         .unwrap();
         let mut tr = Transcript::new();
-        for i in 0..turns {
+        for (i, text) in replies.iter().enumerate() {
             tr.apply(&json!({"type": "user", "message": {"role": "user", "content": format!("pergunta {i}")}}));
-            let text = "## Resposta\n\nUm parágrafo com **negrito** e `código`.\n\n- um\n- dois\n\n```rust\nfn x() {}\n```";
             tr.apply(&json!({"type": "assistant", "message": {"id": format!("m{i}"), "content": [{"type": "text", "text": text}]}}));
         }
         app.data.transcripts.insert("t1".into(), tr);
         let ctx = egui::Context::default();
-        let mut n = 0;
+        let mut shapes = Vec::new();
         for f in 0..3 {
             let input = egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, Vec2::new(1280.0, 800.0))),
@@ -244,16 +245,40 @@ mod tests {
                 egui::CentralPanel::no_frame().show(ui, |ui| show(&mut app, ui, &th));
             });
             out.textures_delta.clear();
-            n = out.shapes.len();
+            shapes = out.shapes;
         }
-        n
+        shapes
+    }
+
+    fn texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
+        fn walk(s: &egui::Shape, out: &mut Vec<String>) {
+            match s {
+                egui::Shape::Text(t) => out.push(t.galley.text().to_string()),
+                egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        shapes.iter().for_each(|c| walk(&c.shape, &mut out));
+        out
     }
 
     #[test]
     fn the_frame_does_not_grow_with_the_conversation() {
         // a resposta do agente chega em pedaços, um quadro por pedaço: se o
         // quadro desenhasse a conversa inteira, travaria nas conversas longas
-        let (short, long) = (shapes(40), shapes(400));
+        let reply = "## Resposta\n\nUm parágrafo com **negrito** e `código`.\n\n- um\n- dois\n\n```rust\nfn x() {}\n```".to_string();
+        let (short, long) = (last_frame(&vec![reply.clone(); 40]).len(), last_frame(&vec![reply; 400]).len());
         assert!(long < short * 2, "40 turnos: {short} formas; 400 turnos: {long}");
+    }
+
+    #[test]
+    fn tables_in_different_replies_do_not_share_an_id() {
+        // a tabela do Markdown guarda as larguras das colunas pelo id: duas
+        // respostas com o mesmo id sobrepunham as colunas uma da outra
+        let a = "| coluna bem larga mesmo | b |\n|---|---|\n| 1 | 2 |".to_string();
+        let b = "| x | y |\n|---|---|\n| 3 | 4 |".to_string();
+        let clash: Vec<String> = texts(&last_frame(&[a, b])).into_iter().filter(|t| t.contains("use of")).collect();
+        assert!(clash.is_empty(), "{clash:?}");
     }
 }
