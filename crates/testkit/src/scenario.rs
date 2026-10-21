@@ -40,6 +40,8 @@ pub struct Fixture {
     pub open_log: PathBuf,
     /// o "último release" (`v99.0.0`) de um servidor local, para `system.check-update`
     pub update_url: String,
+    /// um Gravatar local que só tem a foto de `foto@example.com`, para `system.avatar`
+    pub gravatar_url: String,
 }
 
 impl Fixture {
@@ -62,7 +64,10 @@ impl Fixture {
         let repo = ws.join("app");
         let remote = root.join("remote.git");
         let update_url = crate::fakes::fake_release_server("v99.0.0");
-        let fx = Self { root: root.to_path_buf(), home, data, bin, ws, repo, remote, open_log: root.join("open.log"), update_url };
+        let photo = format!("{:x}", md5::compute("foto@example.com"));
+        let gravatar_url = crate::fakes::fake_gravatar_server(&photo, PNG_1X1.to_vec());
+        let fx =
+            Self { root: root.to_path_buf(), home, data, bin, ws, repo, remote, open_log: root.join("open.log"), update_url, gravatar_url };
         let envs = fx.env();
         let g = |dir: &Path, args: &[&str]| {
             let out =
@@ -114,6 +119,7 @@ impl Fixture {
             ("GIT_CONFIG_NOSYSTEM".into(), "1".into()),
             ("GIT_TERMINAL_PROMPT".into(), "0".into()),
             ("LAZYAICODE_UPDATE_URL".into(), self.update_url.clone().into()),
+            ("LAZYAICODE_GRAVATAR_URL".into(), self.gravatar_url.clone().into()),
             ("LAZYAICODE_DATA_DIR".into(), s(&self.data)),
             ("LAZYAICODE_CLAUDE_BIN".into(), s(&self.bin.join("claude"))),
             ("LAZYAICODE_CODEX_ACP".into(), s(&self.bin.join("codex-acp"))),
@@ -702,6 +708,11 @@ fn providers_and_system(sw: &mut Sweep, ids: &Ids) {
     // a versão nova vem do "último release" (um servidor local, sem rede: `Fixture::env`)
     let u = sw.ok("system.check-update", json!({}));
     sw.check(u["newer"] == json!(true) && u["latest"] == "99.0.0", format!("system.check-update: {}", short(&u)));
+    // a foto do autor vem do Gravatar (local); quem não tem fica sem
+    let a = sw.ok("system.avatar", json!({"email": "Foto@Example.com"}));
+    sw.check(a["image"].as_str().is_some_and(|b| !b.is_empty()), format!("system.avatar: {}", short(&a)));
+    let none = sw.ok("system.avatar", json!({"email": "demo@example.com"}));
+    sw.check(none.is_null(), format!("system.avatar sem foto: {}", short(&none)));
     let d = sw.ok("system.data-dir", json!({}));
     sw.check(!s(&d).is_empty() || d.is_object(), "system.data-dir");
     let home = sw.ok("system.home", json!({}));

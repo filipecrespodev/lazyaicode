@@ -160,6 +160,30 @@ pub fn fake_bin_dir(dir: &Path) -> PathBuf {
 /// Um servidor HTTP local que responde a qualquer pedido com o "último
 /// release" `tag` do GitHub (para `system.check-update` sem rede). Devolve o
 /// endereço; atende em segundo plano enquanto o processo viver.
+/// Um Gravatar de mentira: devolve `image` para o caminho que contém `hash`
+/// e 404 para o resto. Devolve o endereço base (`http://…/avatar`).
+pub fn fake_gravatar_server(hash: &str, image: Vec<u8>) -> String {
+    use std::io::{Read, Write};
+    let Ok(listener) = std::net::TcpListener::bind("127.0.0.1:0") else { return "http://127.0.0.1:9/avatar".into() };
+    let addr = listener.local_addr().map(|a| a.to_string()).unwrap_or_default();
+    let hash = hash.to_string();
+    std::thread::spawn(move || {
+        for mut s in listener.incoming().flatten() {
+            let mut buf = [0u8; 4096];
+            let n = s.read(&mut buf).unwrap_or(0);
+            let req = String::from_utf8_lossy(buf.get(..n).unwrap_or_default());
+            if req.lines().next().is_some_and(|l| l.contains(&hash)) {
+                let _ =
+                    write!(s, "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", image.len());
+                let _ = s.write_all(&image);
+            } else {
+                let _ = write!(s, "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+            }
+        }
+    });
+    format!("http://{addr}/avatar")
+}
+
 pub fn fake_release_server(tag: &str) -> String {
     use std::io::{Read, Write};
     let Ok(listener) = std::net::TcpListener::bind("127.0.0.1:0") else { return "http://127.0.0.1:9/".into() };

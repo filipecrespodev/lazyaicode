@@ -2,7 +2,7 @@
 
 > Gerado por `cargo xtask commands` — não edite à mão.
 
-São **524** comandos: 249 do motor (rodam na CLI, no canal de controle, no MCP e na UI) e 275 de tela (`ui.*`, só no app aberto, pelo `ui.run` do canal de controle). Parâmetros com `?` são opcionais.
+São **525** comandos: 250 do motor (rodam na CLI, no canal de controle, no MCP e na UI) e 275 de tela (`ui.*`, só no app aberto, pelo `ui.run` do canal de controle). Parâmetros com `?` são opcionais.
 
 ## Motor
 
@@ -253,6 +253,7 @@ São **524** comandos: 249 do motor (rodam na CLI, no canal de controle, no MCP 
 | `system.data-dir` 🔎 | Data folder |  |  |
 | `system.home` 🔎 | Home folder |  |  |
 | `system.check-update` 🔎 | Check for a new version — Consulta o último release publicado e diz se é mais novo que esta versão (`LAZYAICODE_UPDATE_URL` troca o endereço). |  |  |
+| `system.avatar` 🔎 | Author photo — A foto do Gravatar de um e-mail (`{"image": base64}`), ou `null` se não houver. Guarda a resposta enquanto o app roda; `LAZYAICODE_GRAVATAR_URL` troca o endereço (vazio desliga). | `email` |  |
 | `system.open-url` | Open a web page — Abre um endereço http(s) no navegador padrão. | `url` |  |
 | `system.session-file` 🔎 | Claude session file — Onde está o `.jsonl` da sessão do Claude Code de uma thread. | `id` |  |
 | `system.session-raw` 🔎 | Raw session messages — As últimas mensagens brutas da sessão (para depuração). | `id`, `last`? |  |

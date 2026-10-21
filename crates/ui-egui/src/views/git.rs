@@ -1185,7 +1185,7 @@ fn commit_list(app: &mut LazyApp, ui: &mut egui::Ui, path: &str) {
                     break;
                 }
             }
-            let meta_w = 240.0;
+            let meta_w = 262.0;
             let mut job = egui::text::LayoutJob::single_section(
                 c["summary"].as_str().unwrap_or("").to_string(),
                 egui::TextFormat { font_id: egui::FontId::proportional(tk.text_size), color: tk.p.text, ..Default::default() },
@@ -1195,13 +1195,15 @@ fn commit_list(app: &mut LazyApp, ui: &mut egui::Ui, path: &str) {
             p.galley(egui::pos2(x, rect.center().y - g.size().y / 2.0), g, tk.p.text);
             let author = c["authorName"].as_str().unwrap_or("");
             let when = widgets::rel_time(c["authorDate"].as_i64().unwrap_or(0) * 1000, now * 1000);
-            p.text(
+            let meta = p.text(
                 egui::pos2(rect.right() - 70.0, rect.center().y),
                 egui::Align2::RIGHT_CENTER,
                 format!("{author} · {when}"),
                 egui::FontId::proportional(tk.text_size - 2.0),
                 tk.p.muted,
             );
+            let face = egui::pos2(meta.left() - 13.0, rect.center().y);
+            author_face(app, ui, face, 8.0, author, c["authorEmail"].as_str().unwrap_or(""));
             p.text(
                 egui::pos2(rect.right() - 6.0, rect.center().y),
                 egui::Align2::RIGHT_CENTER,
@@ -1445,6 +1447,41 @@ fn working(app: &mut LazyApp, ui: &mut egui::Ui, path: &str) {
     });
 }
 
+/// A foto do autor (Gravatar, pelo `system.avatar`) num círculo de raio `r`;
+/// enquanto ela não chega, ou se o autor não tiver, as iniciais.
+fn author_face(app: &mut LazyApp, ui: &egui::Ui, center: Pos2, r: f32, name: &str, email: &str) {
+    let tk = app.tokens;
+    let p = ui.painter();
+    p.circle_filled(center, r, tk.p.active);
+    let initials: String = name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
+    p.text(center, egui::Align2::CENTER_CENTER, initials, egui::FontId::proportional(r * 0.8), tk.p.text);
+    let key = email.trim().to_lowercase();
+    if key.is_empty() {
+        return;
+    }
+    match app.data.avatars.get(&key) {
+        Some(Some(bytes)) => {
+            egui::Image::from_bytes(format!("bytes://avatar/{key}"), bytes.clone())
+                .corner_radius(r)
+                .show_loading_spinner(false)
+                .paint_at(ui, Rect::from_center_size(center, Vec2::splat(r * 2.0)));
+        }
+        Some(None) => {}
+        None => {
+            // uma vez por e-mail: sem foto (ou sem rede), ficam as iniciais
+            app.data.avatars.insert(key.clone(), None);
+            app.call("system.avatar", json!({ "email": key }), move |app, r| {
+                let bytes = r.ok().and_then(|v| {
+                    use base64::Engine as _;
+                    base64::engine::general_purpose::STANDARD.decode(v["image"].as_str()?).ok()
+                });
+                let ok = bytes.filter(|b| crate::views::transcript::image_ok(b));
+                app.data.avatars.insert(key, ok.map(std::sync::Arc::from));
+            });
+        }
+    }
+}
+
 fn commit_details(app: &mut LazyApp, ui: &mut egui::Ui, path: &str, sha: &str) {
     let tk = app.tokens;
     let Some(r) = repo(app, path) else { return };
@@ -1465,10 +1502,12 @@ fn commit_details(app: &mut LazyApp, ui: &mut egui::Ui, path: &str, sha: &str) {
             });
         });
         let when = c["authorDate"].as_i64().map(|d| widgets::rel_time(d * 1000, app.host.now_ms())).unwrap_or_default();
-        ui.label(widgets::muted(
-            &tk,
-            format!("{} <{}> · {when}", c["authorName"].as_str().unwrap_or(""), c["authorEmail"].as_str().unwrap_or("")),
-        ));
+        let (name, email) = (c["authorName"].as_str().unwrap_or(""), c["authorEmail"].as_str().unwrap_or(""));
+        ui.horizontal(|ui| {
+            let (face, _) = ui.allocate_exact_size(Vec2::splat(28.0), Sense::hover());
+            author_face(app, ui, face.center(), 14.0, name, email);
+            ui.label(widgets::muted(&tk, format!("{name} <{email}> · {when}")));
+        });
         if let Some(body) = c["body"].as_str().filter(|b| !b.trim().is_empty()) {
             ui.add(egui::Label::new(RichText::new(body.trim()).color(tk.p.text)).wrap().selectable(true));
         }

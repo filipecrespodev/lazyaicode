@@ -2593,6 +2593,7 @@ dependencies = [
  "lazyaicode-testkit",
  "md5",
  "parking_lot",
+ "reqwest",
  "serde",
  "serde_json",
  "tempfile",
@@ -2669,6 +2670,7 @@ dependencies = [
 name = "lazyaicode-testkit"
 version = "0.4.1"
 dependencies = [
+ "md5",
  "serde_json",
  "tempfile",
 ]

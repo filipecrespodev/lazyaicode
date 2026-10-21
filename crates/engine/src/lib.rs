@@ -126,6 +126,9 @@ pub(crate) struct Core {
     pub sessions: Mutex<sessions::SessionCache>,
     /// resposta da sondagem do CLI por (conta, pasta), com o instante
     pub capabilities: Mutex<HashMap<(PathBuf, PathBuf), (Instant, Value)>>,
+    /// `system.avatar`: foto do Gravatar por hash do e-mail (base64), ou
+    /// `None` quando não há foto
+    pub avatars: Mutex<HashMap<String, Option<String>>>,
     pub git: lazyaicode_git::state::AppState,
     pub bus: broadcast::Sender<Event>,
     pub journal: Mutex<journal::Journal>,
@@ -175,6 +178,7 @@ impl Engine {
             data_dir,
             sessions: Mutex::new(sessions::SessionCache::default()),
             capabilities: Mutex::new(HashMap::new()),
+            avatars: Mutex::new(HashMap::new()),
             git: lazyaicode_git::state::AppState::default(),
             bus,
             journal: Mutex::new(journal::Journal::default()),

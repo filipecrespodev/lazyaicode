@@ -595,6 +595,32 @@ pub fn register(r: &mut Registry) {
             }),
     );
     r.add(
+        Spec::new("system.avatar", "Author photo", "system")
+            .params(vec![p::s("email")])
+            .read_only()
+            .doc("A foto do Gravatar de um e-mail (`{\"image\": base64}`), ou `null` se não houver. Guarda a resposta enquanto o app roda; `LAZYAICODE_GRAVATAR_URL` troca o endereço (vazio desliga).")
+            .run(|e, v| async move {
+                #[derive(Deserialize)]
+                struct P {
+                    email: String,
+                }
+                let p: P = parse(v)?;
+                let Some(hash) = gravatar_hash(&p.email) else { return Err(EngineError::BadParams("e-mail inválido".into())) };
+                if let Some(known) = e.core.avatars.lock().get(&hash) {
+                    return Ok(known.as_ref().map_or(Value::Null, |b| json!({ "image": b })));
+                }
+                let base = std::env::var("LAZYAICODE_GRAVATAR_URL").unwrap_or_else(|_| GRAVATAR_URL.to_string());
+                if base.is_empty() {
+                    return Ok(Value::Null);
+                }
+                // sem rede ou com o servidor fora, tenta de novo da próxima vez
+                let found = fetch_avatar(&format!("{base}/{hash}?s=64&d=404")).await?;
+                let b64 = found.map(|b| base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b));
+                e.core.avatars.lock().insert(hash, b64.clone());
+                Ok(b64.map_or(Value::Null, |b| json!({ "image": b })))
+            }),
+    );
+    r.add(
         Spec::new("system.open-url", "Open a web page", "system")
             .params(vec![p::s("url")])
             .doc("Abre um endereço http(s) no navegador padrão.")
@@ -741,6 +767,39 @@ mod tests {
         let md = markdown(&t.items);
         assert!(md.contains("### Você\n\noi") && md.ends_with("olá"), "{md}");
     }
+}
+
+/// De onde vêm as fotos dos autores.
+const GRAVATAR_URL: &str = "https://www.gravatar.com/avatar";
+/// Maior foto aceita (a de 64 px tem poucos KB).
+const AVATAR_MAX_BYTES: usize = 256 * 1024;
+
+/// O hash do Gravatar: MD5 do e-mail sem espaços e em minúsculas.
+pub(crate) fn gravatar_hash(email: &str) -> Option<String> {
+    let e = email.trim().to_lowercase();
+    let ok = e.len() <= 254 && e.split_once('@').is_some_and(|(a, b)| !a.is_empty() && !b.is_empty()) && !e.contains(char::is_whitespace);
+    ok.then(|| format!("{:x}", md5::compute(e.as_bytes())))
+}
+
+/// A foto, `None` se o Gravatar não tem (404), erro se não deu para saber.
+async fn fetch_avatar(url: &str) -> Result<Option<Vec<u8>>> {
+    let failed = |e: String| EngineError::Failed(format!("foto do autor: {e}"));
+    let client = reqwest::Client::builder().timeout(Duration::from_secs(10)).build().map_err(|e| failed(e.to_string()))?;
+    let mut resp = client.get(url).header("User-Agent", "LazyAICode").send().await.map_err(|e| failed(e.to_string()))?;
+    if resp.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    if !resp.status().is_success() {
+        return Err(failed(format!("HTTP {}", resp.status())));
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = resp.chunk().await.map_err(|e| failed(e.to_string()))? {
+        if body.len() + chunk.len() > AVATAR_MAX_BYTES {
+            return Err(failed("resposta grande demais".into()));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(Some(body))
 }
 
 /// Onde sai o último release do app.

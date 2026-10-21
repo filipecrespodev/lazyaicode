@@ -38,6 +38,9 @@ pub struct Data {
     /// chegou evento de status no meio da leitura: ler de novo
     pub activity_dirty: bool,
     pub transcripts: HashMap<String, Transcript>,
+    /// fotos dos autores de commit por e-mail (minúsculo): `None` enquanto
+    /// carrega ou quando não há foto
+    pub avatars: HashMap<String, Option<std::sync::Arc<[u8]>>>,
     pub loading_transcript: HashSet<String>,
     /// `thread.diff-stats` por thread
     pub diff_stats: HashMap<String, Value>,

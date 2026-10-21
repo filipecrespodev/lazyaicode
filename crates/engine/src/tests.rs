@@ -346,3 +346,28 @@ async fn relative_paths_are_refused_instead_of_resolved_against_the_process_cwd(
     let r = e.run("thread.set-options", json!({"id": "x", "addDirs": ["rel"]})).await;
     assert!(matches!(r, Err(EngineError::BadParams(_))), "addDirs relativo: {r:?}");
 }
+
+#[tokio::test]
+async fn author_photo_comes_from_gravatar_and_is_remembered() {
+    let tmp = tempfile::tempdir().unwrap();
+    let e = engine(tmp.path());
+    // o hash é do e-mail normalizado (sem espaços, minúsculo)
+    let hash = crate::extra_cmds::gravatar_hash("demo@example.com").unwrap();
+    assert_eq!(crate::extra_cmds::gravatar_hash("  Demo@Example.COM "), Some(hash.clone()));
+    assert_eq!(hash, format!("{:x}", md5::compute("demo@example.com")));
+    for bad in ["", "sem-arroba", "@x", "a@", "a b@c"] {
+        assert!(crate::extra_cmds::gravatar_hash(bad).is_none(), "{bad}");
+    }
+    std::env::set_var("LAZYAICODE_GRAVATAR_URL", lazyaicode_testkit::fakes::fake_gravatar_server(&hash, b"PNGDATA".to_vec()));
+    let got = e.run("system.avatar", json!({"email": "Demo@Example.com"})).await.unwrap();
+    assert_eq!(got["image"], json!("UE5HREFUQQ=="));
+    assert_eq!(e.run("system.avatar", json!({"email": "ninguem@example.com"})).await.unwrap(), Value::Null);
+    // já sabidos: nem o servidor fora do ar muda a resposta
+    std::env::set_var("LAZYAICODE_GRAVATAR_URL", "http://127.0.0.1:9/avatar");
+    assert_eq!(e.run("system.avatar", json!({"email": "demo@example.com"})).await.unwrap()["image"], json!("UE5HREFUQQ=="));
+    assert_eq!(e.run("system.avatar", json!({"email": "ninguem@example.com"})).await.unwrap(), Value::Null);
+    // desligado
+    std::env::set_var("LAZYAICODE_GRAVATAR_URL", "");
+    assert_eq!(e.run("system.avatar", json!({"email": "outro@example.com"})).await.unwrap(), Value::Null);
+    assert!(e.run("system.avatar", json!({"email": "nada"})).await.is_err());
+}

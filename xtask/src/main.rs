@@ -288,7 +288,8 @@ fn screenshots() -> Result<(), String> {
     for (name, extra) in shots {
         let mut c = Command::new(root().join("target/debug/lazyaicode"));
         c.arg("--data-dir").arg(&data).arg("--screenshot").arg(out.join(name)).args(["--size", "1280x800", "--frames", "70"]).args(&extra);
-        c.env("GIT_CONFIG_GLOBAL", &gitconfig).env("LAZYAICODE_CLAUDE_BIN", &bin);
+        // sem foto de autor: as capturas não dependem da rede
+        c.env("GIT_CONFIG_GLOBAL", &gitconfig).env("LAZYAICODE_CLAUDE_BIN", &bin).env("LAZYAICODE_GRAVATAR_URL", "");
         run(&mut c)?;
     }
     Ok(())

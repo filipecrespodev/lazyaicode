@@ -696,6 +696,8 @@ fn every_screen_command_runs_end_to_end() {
     lazyaicode_engine::workspace::init_platform();
     // nada de rede: o "último release" vem de um servidor local
     std::env::set_var("LAZYAICODE_UPDATE_URL", lazyaicode_testkit::fakes::fake_release_server("v99.0.0"));
+    // nem foto de autor (Gravatar)
+    std::env::set_var("LAZYAICODE_GRAVATAR_URL", "");
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
     let engine = {
         let _g = rt.enter();
@@ -842,6 +844,8 @@ fn each_workspace_opens_in_its_own_window() {
     lazyaicode_engine::workspace::init_platform();
     // nada de rede: o "último release" vem de um servidor local
     std::env::set_var("LAZYAICODE_UPDATE_URL", lazyaicode_testkit::fakes::fake_release_server("v99.0.0"));
+    // nem foto de autor (Gravatar)
+    std::env::set_var("LAZYAICODE_GRAVATAR_URL", "");
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
     let engine = {
         let _g = rt.enter();
