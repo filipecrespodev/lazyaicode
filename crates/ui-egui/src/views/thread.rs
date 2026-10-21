@@ -40,7 +40,8 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
             ui.scroll_to_cursor(Some(Align::TOP));
         }
         ui.add_space(12.0);
-        let items: Vec<Item> = app.data.transcripts.get(&id).map(|t| t.items.clone()).unwrap_or_default();
+        let rows: Vec<bool> =
+            app.data.transcripts.get(&id).map(|t| t.items.iter().map(|it| matches!(it, Item::User { .. })).collect()).unwrap_or_default();
         // A coluna tem largura fixa e cada linha é desenhada num filho
         // recortado nela: um bloco de código ou uma linha sem quebra larga
         // demais não alarga a coluna (no egui, o pai cresce para caber o
@@ -49,7 +50,7 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
         let width = tk.content_w.min(avail - 48.0).max(200.0);
         let margin = ((avail - width) / 2.0).max(24.0).min((avail - width).max(0.0));
         let col = Col { left: ui.cursor().left() + margin, width };
-        if items.is_empty() {
+        if rows.is_empty() {
             col.row(ui, &tk, Avatar::Gap, |ui| {
                 if app.data.loading_transcript.contains(&id) {
                     ui.horizontal(|ui| {
@@ -61,24 +62,40 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
                 }
             });
         }
+        // Só as linhas perto da área visível são desenhadas; as outras
+        // reservam a altura medida da última vez. Desenhar a conversa toda
+        // a cada quadro (o Markdown de cada resposta refeito) deixava o
+        // quadro proporcional ao tamanho da conversa, e durante a resposta
+        // do agente há um quadro por pedaço de texto.
+        let clip = ui.clip_rect().expand2(Vec2::new(0.0, NEAR));
         let mut prev_user = true;
-        for (n, it) in items.iter().enumerate() {
-            if let Item::User { key, text, images } = it {
+        for (n, is_user) in rows.iter().copied().enumerate() {
+            let head = !is_user && prev_user;
+            prev_user = is_user;
+            let top = ui.cursor().top();
+            let Some(it) = app.data.transcripts.get(&id).and_then(|t| t.items.get(n)) else { break };
+            let s = sig(app, it, width, head);
+            let known = app.eph.row_heights.get(&id).and_then(|m| m.get(it.key())).filter(|(old, _)| *old == s).map(|(_, h)| *h);
+            if let Some(h) = known.filter(|h| top > clip.bottom() || top + h < clip.top()) {
+                ui.add_space(h);
+                continue;
+            }
+            let it = it.clone();
+            if let Item::User { key, text, images } = &it {
                 // espaço antes de cada mensagem do usuário, como no app antigo
                 if n > 0 {
                     ui.add_space(12.0);
                 }
                 col.row(ui, &tk, Avatar::Person(&user), |ui| crate::views::transcript::user_message(app, ui, key, text, images));
-                prev_user = true;
-                continue;
+            } else {
+                if head {
+                    ui.add_space(4.0);
+                }
+                let avatar = if head { Avatar::Agent } else { Avatar::Gap };
+                col.row(ui, &tk, avatar, |ui| crate::views::transcript::item(app, ui, &id, &it));
             }
-            let head = prev_user;
-            prev_user = false;
-            if head {
-                ui.add_space(4.0);
-            }
-            let avatar = if head { Avatar::Agent } else { Avatar::Gap };
-            col.row(ui, &tk, avatar, |ui| crate::views::transcript::item(app, ui, &id, it));
+            let h = ui.cursor().top() - top;
+            app.eph.row_heights.entry(id.clone()).or_default().insert(it.key().to_string(), (s, h));
         }
         if th.status == Status::Running {
             col.row(ui, &tk, Avatar::Gap, |ui| {
@@ -97,6 +114,33 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
             ui.scroll_to_cursor(Some(Align::BOTTOM));
         }
     });
+}
+
+/// Quanto além da área visível (px, acima e abaixo) ainda se desenha.
+const NEAR: f32 = 400.0;
+
+/// Muda quando a altura da linha pode mudar: o conteúdo cresceu, o card foi
+/// aberto/fechado, a coluna mudou de largura ou a linha ganhou/perdeu o
+/// avatar.
+fn sig(app: &LazyApp, it: &Item, width: f32, head: bool) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (width.to_bits(), head).hash(&mut h);
+    let open = |m: &std::collections::HashMap<String, bool>, k: &str| m.get(k).copied().unwrap_or(false);
+    match it {
+        Item::User { text, images, .. } => (0u8, text.len(), images.len()).hash(&mut h),
+        Item::Text { text, is_final, .. } => (1u8, text.len(), is_final).hash(&mut h),
+        Item::Thinking { key, text, is_final, .. } => (2u8, text.len(), is_final, open(&app.eph.thinking_open, key)).hash(&mut h),
+        Item::Tool { key, input, partial, result, .. } => {
+            let r = result.as_ref().map(|r| (r.text.len(), r.is_error));
+            (3u8, input.as_object().map_or(0, |o| o.len()), partial.is_empty(), r, open(&app.eph.tool_open, key)).hash(&mut h)
+        }
+        Item::Permission { key, decided, .. } => (4u8, decided.is_some(), open(&app.eph.tool_open, &format!("{key}-detail"))).hash(&mut h),
+        Item::Result { is_error, text, .. } => (5u8, is_error, text.as_ref().map(String::len)).hash(&mut h),
+        Item::Error { text, .. } => (6u8, text.len()).hash(&mut h),
+        Item::Notice { text, .. } => (7u8, text.len()).hash(&mut h),
+    }
+    h.finish()
 }
 
 enum Avatar<'a> {
@@ -164,4 +208,52 @@ fn hello(app: &LazyApp, ui: &mut egui::Ui, th: &ThreadView) {
     ui.add_space(20.0);
     ui.label(RichText::new(text).color(tk.p.muted));
     ui.add_space(20.0);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lazyaicode_doc::transcript::Transcript;
+    use serde_json::json;
+
+    /// Formas do último de alguns quadros da conversa com `turns` turnos.
+    fn shapes(turns: usize) -> usize {
+        let mut app = LazyApp::new(Box::new(crate::MockClient::default()), Box::new(crate::NoHost), crate::Inbox::default());
+        let th: ThreadView = serde_json::from_value(json!({
+            "id": "t1", "project_id": "p1", "workspace_id": "w1", "title": "t", "created_at": 0, "updated_at": 0,
+            "cwd": "/demo", "isolated": false, "branch": null, "base_ref": null, "session_id": null,
+            "model": "default", "permission_mode": "default"
+        }))
+        .unwrap();
+        let mut tr = Transcript::new();
+        for i in 0..turns {
+            tr.apply(&json!({"type": "user", "message": {"role": "user", "content": format!("pergunta {i}")}}));
+            let text = "## Resposta\n\nUm parágrafo com **negrito** e `código`.\n\n- um\n- dois\n\n```rust\nfn x() {}\n```";
+            tr.apply(&json!({"type": "assistant", "message": {"id": format!("m{i}"), "content": [{"type": "text", "text": text}]}}));
+        }
+        app.data.transcripts.insert("t1".into(), tr);
+        let ctx = egui::Context::default();
+        let mut n = 0;
+        for f in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, Vec2::new(1280.0, 800.0))),
+                time: Some(f64::from(f) * 0.05),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                egui::CentralPanel::no_frame().show(ui, |ui| show(&mut app, ui, &th));
+            });
+            out.textures_delta.clear();
+            n = out.shapes.len();
+        }
+        n
+    }
+
+    #[test]
+    fn the_frame_does_not_grow_with_the_conversation() {
+        // a resposta do agente chega em pedaços, um quadro por pedaço: se o
+        // quadro desenhasse a conversa inteira, travaria nas conversas longas
+        let (short, long) = (shapes(40), shapes(400));
+        assert!(long < short * 2, "40 turnos: {short} formas; 400 turnos: {long}");
+    }
 }

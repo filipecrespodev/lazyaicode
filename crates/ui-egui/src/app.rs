@@ -37,6 +37,9 @@ pub struct Ephemeral {
     pub editing_title: Option<String>,
     pub thinking_open: HashMap<String, bool>,
     pub tool_open: HashMap<String, bool>,
+    /// altura de cada linha da conversa já desenhada (thread → item →
+    /// (assinatura, altura)): a linha fora da tela só reserva o espaço
+    pub row_heights: HashMap<String, HashMap<String, (u64, f32)>>,
     pub slash_index: usize,
     pub slash_dismissed: bool,
     pub palette_index: usize,
