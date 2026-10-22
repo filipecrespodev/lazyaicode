@@ -2,7 +2,7 @@
 
 **Estágio:** reescrita em Rust puro concluída; v0.4 com uma janela por workspace. O app desktop, a CLI,
 o canal de controle, o MCP e a versão web rodam sobre o mesmo motor de
-comandos (524 comandos: 249 do motor + 275 de tela).
+comandos (528 comandos: 249 do motor + 279 de tela).
 
 ## Pronto
 
@@ -11,7 +11,7 @@ comandos (524 comandos: 249 do motor + 275 de tela).
 | Motor | sessão, registro de comandos, journal, lotes, eventos, panic hunt |
 | Agentes | Claude Code (stream-json), Codex e Gemini (ACP), permissões, MCP da sessão, sessões importadas |
 | Threads | diretas e isoladas (worktree), revisão com "visto", integrar (aplicar, merge, PR pelo agente), arquivar |
-| UI | uma janela por workspace, sessões de todos os workspaces na barra de título (esperando você, rodando, terminadas sem ler) e no título da janela, barra lateral com selo de status, conversa com markdown/ferramentas/permissões/imagens, menu `/`, rodapé (modelo, modo, esforço, contexto, MCP), revisão, git (grafo, staging por arquivo/hunk/linha, commit com IA, branches/tags/stash, push/pull/fetch, conflitos com IA, rebase interativo, blame, histórico de arquivo, comparação, busca, PR/MR, worktrees, remotos, submódulos, LFS, reflog, estatísticas, visão geral com zoom), terminal, paleta, configurações, 13 temas, 4 idiomas |
+| UI | uma janela por workspace, sessões de todos os workspaces na barra de título (esperando você, rodando, terminadas sem ler) e no título da janela, barra lateral com selo de status, sessões do projeto em abas lado a lado, conversa com markdown/ferramentas/permissões/imagens, menu `/`, rodapé (modelo, modo, esforço, contexto, MCP), revisão, git (grafo, staging por arquivo/hunk/linha, commit com IA, branches/tags/stash, push/pull/fetch, conflitos com IA, rebase interativo, blame, histórico de arquivo, comparação, busca, PR/MR, worktrees, remotos, submódulos, LFS, reflog, estatísticas, visão geral com zoom), terminal, paleta, configurações, 13 temas, 4 idiomas |
 | Automação | CLI, canal de controle TCP e WebSocket, MCP (headless e ponte) |
 | Renderização | wgpu (Metal/Vulkan/DX12/GL/WebGPU) e compositor de referência em CPU testado contra ele |
 | Web | wasm + `lazyaicode-cli serve --web`, Dockerfile |

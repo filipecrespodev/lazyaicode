@@ -327,7 +327,7 @@ fn run() -> Result<(), String> {
 
     let mut app = LazyApp::new(client, host, inbox.clone());
     if let Some(t) = &args.theme {
-        app.state.appearance.theme = t.clone();
+        app.force_theme(t);
     }
 
     if let Some(out) = &args.screenshot {

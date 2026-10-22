@@ -110,6 +110,8 @@ pub struct LazyApp {
     attn: crate::attention::Attention,
     /// janela de um workspace aberta por outra (não é a principal)
     pub(crate) is_child: bool,
+    /// o `--theme` da linha de comando
+    theme_override: Option<String>,
     /// abrir outro workspace abre outra janela (senão, outra aba)
     pub(crate) multi_window: bool,
     /// o workspace com que uma janela filha nasce
@@ -131,6 +133,12 @@ impl LazyApp {
     /// Sem consultar versões novas (capturas de tela).
     pub fn without_update_check(&mut self) {
         self.update_check = false;
+    }
+
+    /// Tema fixo (`--theme`): vale mais que o gravado nas preferências.
+    pub fn force_theme(&mut self, theme: &str) {
+        self.theme_override = Some(theme.to_string());
+        self.state.appearance.theme = theme.to_string();
     }
 
     /// Com a fábrica, abrir outro workspace abre outra janela do app.
@@ -163,6 +171,7 @@ impl LazyApp {
             last_persisted: None,
             attn: crate::attention::Attention::default(),
             is_child: start.is_some(),
+            theme_override: None,
             multi_window: start.is_some(),
             start,
             update_check: true,
@@ -251,6 +260,9 @@ impl LazyApp {
         if let Ok(a) = serde_json::from_value(get("ui.appearance")) {
             self.state.appearance = a;
         }
+        if let Some(t) = &self.theme_override {
+            self.state.appearance.theme = t.clone();
+        }
         if let Ok(v) = serde_json::from_value::<Vec<String>>(get("ui.openWorkspaces")) {
             if !self.is_child {
                 self.state.open_workspaces = v;
@@ -284,6 +296,11 @@ impl LazyApp {
             "ui.shortcuts": self.state.shortcuts,
             "ui.collapsed": self.state.collapsed,
         });
+        // as abas são de um workspace: cada janela grava só as do dela
+        if let (Some(ws), Some(m)) = (self.data.active_workspace.as_deref(), snapshot.as_object_mut()) {
+            let active = self.state.selected.as_ref().or(self.eph.select_after_load.as_ref());
+            m.insert(tabs_key(ws), json!({ "tabs": self.state.open_tabs, "active": active }));
+        }
         if self.is_child {
             // quais workspaces ficam abertos é a principal quem grava
             if let Some(m) = snapshot.as_object_mut() {
@@ -403,6 +420,7 @@ impl LazyApp {
         self.data.active_workspace = Some(id.to_string());
         self.state.selected = None;
         self.state.repo_project = None;
+        self.restore_tabs(id);
         self.data.projects.clear();
         self.data.threads.clear();
         self.fire("workspace.activate", json!({ "id": id }));
@@ -500,6 +518,8 @@ impl LazyApp {
                     app.state.selected = None;
                 }
             }
+            let known: std::collections::HashSet<&str> = app.data.threads.iter().map(|t| t.thread.id.as_str()).collect();
+            app.state.open_tabs.retain(|id| known.contains(id.as_str()));
             if let Some(t) = app.eph.select_after_load.take() {
                 if app.data.thread(&t).is_some() {
                     app.select_thread(&t);
@@ -519,6 +539,7 @@ impl LazyApp {
             // o título em edição era da thread anterior: ao perder o foco, viraria o desta
             self.eph.editing_title = None;
         }
+        self.open_tab(id);
         self.state.selected = Some(id.to_string());
         self.state.repo_project = None;
         self.eph.scroll_to_bottom = true;
@@ -540,6 +561,56 @@ impl LazyApp {
         if !is_git && self.state.tab.is_git() {
             self.state.tab = MainTab::Chat;
         }
+    }
+
+    // ---------- abas das sessões ----------
+
+    /// Põe a sessão numa aba, logo depois da aberta (ou no fim).
+    pub fn open_tab(&mut self, id: &str) {
+        if self.state.open_tabs.iter().any(|t| t == id) {
+            return;
+        }
+        let after = self.state.selected.as_ref().and_then(|s| self.state.open_tabs.iter().position(|t| t == s));
+        match after {
+            Some(i) => self.state.open_tabs.insert(i + 1, id.to_string()),
+            None => self.state.open_tabs.push(id.to_string()),
+        }
+    }
+
+    /// As abas do projeto, na ordem da barra.
+    pub fn project_tabs(&self, project_id: &str) -> Vec<String> {
+        self.state.open_tabs.iter().filter(|id| self.data.thread(id).is_some_and(|t| t.thread.project_id == project_id)).cloned().collect()
+    }
+
+    /// Fecha a aba; se era a aberta, abre a vizinha do mesmo projeto (a da
+    /// direita, senão a da esquerda) ou, sem nenhuma, a tela do repositório.
+    pub fn close_tab(&mut self, id: &str) {
+        let pos = self.state.open_tabs.iter().position(|t| t == id);
+        if let Some(i) = pos {
+            self.state.open_tabs.remove(i);
+        }
+        if self.state.selected.as_deref() != Some(id) {
+            return;
+        }
+        let project = self.data.thread(id).map(|t| t.thread.project_id.clone());
+        let i = pos.unwrap_or(self.state.open_tabs.len());
+        let same = |t: &&String| self.data.thread(t).is_some_and(|t| Some(&t.thread.project_id) == project.as_ref());
+        let next = self.state.open_tabs.iter().skip(i).find(same).or_else(|| self.state.open_tabs.iter().take(i).rev().find(same)).cloned();
+        match next {
+            Some(n) => self.select_thread(&n),
+            None => {
+                self.state.selected = None;
+                self.eph.editing_title = None;
+                self.state.repo_project = project.filter(|p| self.data.project(p).is_some());
+            }
+        }
+    }
+
+    /// As abas e a sessão aberta da última vez neste workspace.
+    fn restore_tabs(&mut self, ws: &str) {
+        let saved = self.data.prefs.get(&tabs_key(ws)).cloned().unwrap_or(Value::Null);
+        self.state.open_tabs = serde_json::from_value(saved["tabs"].clone()).unwrap_or_default();
+        self.eph.select_after_load = saved["active"].as_str().map(str::to_string);
     }
 
     pub fn load_transcript(&mut self, id: &str) {
@@ -996,4 +1067,9 @@ impl LazyApp {
     pub fn has_pending(&self) -> bool {
         !self.pending.is_empty()
     }
+}
+
+/// A preferência com as abas de um workspace.
+fn tabs_key(ws: &str) -> String {
+    format!("ui.tabs.{ws}")
 }

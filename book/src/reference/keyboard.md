@@ -42,6 +42,9 @@
 | `Alt+7` | `ui.thread.open-7` | Open thread 7 |
 | `Alt+8` | `ui.thread.open-8` | Open thread 8 |
 | `Alt+9` | `ui.thread.open-9` | Open thread 9 |
+| `Ctrl+Shift+W` | `ui.thread.close` | Close tab |
+| `Ctrl+Shift+PageDown` | `ui.thread.next-tab` | Next session tab |
+| `Ctrl+Shift+PageUp` | `ui.thread.prev-tab` | Previous session tab |
 | `F2` | `ui.thread.rename` | Double-click to rename |
 | `Ctrl+D` | `ui.thread.toggle-bookmark` | Bookmark thread |
 | `Ctrl+Shift+E` | `ui.thread.archive` | Archive thread |

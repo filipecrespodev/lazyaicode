@@ -8,6 +8,11 @@
    direto na pasta; `Ctrl+Shift+N` abre uma **isolada**: um `git worktree`
    numa branch própria (`lazy/<id>`), criada a partir do upstream. Nada
    chega ao projeto até você revisar e integrar.
+   Cada sessão aberta vira uma **aba** no topo, ao lado das outras do mesmo
+   projeto (com o ponto de status de cada uma): clicar troca,
+   `Ctrl+Shift+PageDown`/`PageUp` passa para a próxima/anterior,
+   `Ctrl+Shift+W` ou o botão do meio fecha, e o **+** abre uma nova no
+   projeto. As abas abertas ficam gravadas por workspace para a próxima vez.
 3. **Conversa.** Escreva a tarefa e `Enter`. `/` abre os skills e comandos
    que o Claude Code carrega naquela pasta; `Ctrl+Shift+V` ou arrastar anexa
    imagens. Pedidos de permissão aparecem como cartões (`Ctrl+Y` permite,

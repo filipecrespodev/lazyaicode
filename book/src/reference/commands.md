@@ -2,7 +2,7 @@
 
 > Gerado por `cargo xtask commands` — não edite à mão.
 
-São **525** comandos: 250 do motor (rodam na CLI, no canal de controle, no MCP e na UI) e 275 de tela (`ui.*`, só no app aberto, pelo `ui.run` do canal de controle). Parâmetros com `?` são opcionais.
+São **528** comandos: 250 do motor (rodam na CLI, no canal de controle, no MCP e na UI) e 278 de tela (`ui.*`, só no app aberto, pelo `ui.run` do canal de controle). Parâmetros com `?` são opcionais.
 
 ## Motor
 
@@ -565,7 +565,10 @@ São **525** comandos: 250 do motor (rodam na CLI, no canal de controle, no MCP 
 | `ui.thread.open-7` | Open thread 7 |  | `Alt+7` |
 | `ui.thread.open-8` | Open thread 8 |  | `Alt+8` |
 | `ui.thread.open-9` | Open thread 9 |  | `Alt+9` |
-| `ui.thread.close` | Close thread |  |  |
+| `ui.thread.close` | Close tab — Fecha a aba da sessão (a aberta, sem `id`) e abre a vizinha do mesmo projeto. | `id`? | `Ctrl+Shift+W` |
+| `ui.thread.close-others` | Close other tabs — Fecha as outras abas do projeto da sessão e deixa só ela. | `id`? |  |
+| `ui.thread.next-tab` | Next session tab |  | `Ctrl+Shift+PageDown` |
+| `ui.thread.prev-tab` | Previous session tab |  | `Ctrl+Shift+PageUp` |
 | `ui.thread.rename` | Double-click to rename | `title`? | `F2` |
 | `ui.thread.toggle-bookmark` | Bookmark thread |  | `Ctrl+D` |
 | `ui.thread.mark-unread` | Mark as unread |  |  |

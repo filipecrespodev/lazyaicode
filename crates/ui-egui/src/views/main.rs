@@ -1,5 +1,5 @@
-//! A área principal: o cabeçalho da thread (ou do repositório), as abas e
-//! o conteúdo da aba aberta.
+//! A área principal: as sessões abertas do projeto em abas, o cabeçalho da
+//! thread (ou do repositório), as abas da thread e o conteúdo da aberta.
 
 use egui::{Align, Layout, RichText, Sense, Stroke, Vec2};
 use egui_phosphor::regular as icon;
@@ -16,11 +16,13 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui) {
     let frame = egui::Frame::new().fill(tk.p.bg);
     egui::CentralPanel::default().frame(frame).show(ui, |ui| {
         if let Some(th) = app.selected().cloned() {
+            session_tabs(app, ui, &th.thread.project_id);
             thread_header(app, ui, &th);
             widgets::hline(ui, &tk);
             tabs_bar(app, ui, true);
             content(app, ui, Some(&th));
         } else if let Some(p) = app.current_project().cloned() {
+            session_tabs(app, ui, &p.id);
             repo_header(app, ui, &p);
             widgets::hline(ui, &tk);
             tabs_bar(app, ui, false);
@@ -29,6 +31,110 @@ pub fn show(app: &mut LazyApp, ui: &mut egui::Ui) {
             welcome(app, ui);
         }
     });
+}
+
+/// O que a barra de abas das sessões pediu neste quadro.
+enum TabAction {
+    Open(String),
+    Close(String),
+    CloseOthers(String),
+}
+
+/// As sessões abertas do projeto, lado a lado; some quando não há nenhuma
+/// (a tela do repositório sem sessões abertas). Cada aba tem o ponto de
+/// status, o título e o "x" (na aberta ou sob o mouse); o clique abre, o
+/// botão do meio fecha e o menu fecha as outras.
+fn session_tabs(app: &mut LazyApp, ui: &mut egui::Ui, project_id: &str) {
+    // a aberta sempre tem aba, mesmo quando chegou por outro caminho (`ui.state.set`)
+    if let Some(sel) = app.state.selected.clone() {
+        app.open_tab(&sel);
+    }
+    let tabs = app.project_tabs(project_id);
+    if tabs.is_empty() {
+        return;
+    }
+    let tk = app.tokens;
+    let time = ui.input(|i| i.time);
+    let mut action = None;
+    egui::Frame::new().fill(tk.p.panel).show(ui, |ui| {
+        ui.set_min_width(ui.available_width());
+        egui::ScrollArea::horizontal()
+            .id_salt("session-tabs")
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    for id in &tabs {
+                        let Some(th) = app.data.thread(id) else { continue };
+                        let on = app.state.selected.as_deref() == Some(id.as_str());
+                        let (title, cwd, status, unread) = (th.thread.title.clone(), th.thread.cwd.clone(), th.status, th.thread.unread);
+                        let font = egui::FontId::proportional(tk.text_size - 0.5);
+                        let mut job =
+                            egui::text::LayoutJob::simple_singleline(title.clone(), font, if on { tk.p.text } else { tk.p.muted });
+                        job.wrap = egui::text::TextWrapping::truncate_at_width(170.0);
+                        let g = ui.painter().layout_job(job);
+                        let (rect, r) = ui.allocate_exact_size(Vec2::new(g.size().x + 64.0, 32.0), Sense::click());
+                        let close_rect = egui::Rect::from_center_size(egui::pos2(rect.right() - 17.0, rect.center().y), Vec2::splat(18.0));
+                        let close = ui.interact(close_rect, egui::Id::new(("session-tab-close", id)), Sense::click());
+                        let hovered = r.hovered() || close.hovered();
+                        let p = ui.painter();
+                        if on {
+                            p.rect_filled(rect, 0.0, tk.p.bg);
+                            p.hline(rect.x_range(), rect.top() + 1.0, Stroke::new(2.0, tk.p.accent));
+                        } else if hovered {
+                            p.rect_filled(rect, 0.0, tk.p.hover);
+                        }
+                        p.vline(rect.right() - 0.5, rect.y_range(), Stroke::new(1.0, tk.p.border));
+                        p.galley(egui::pos2(rect.left() + 30.0, rect.center().y - g.size().y / 2.0), g, tk.p.text);
+                        if on || hovered {
+                            if close.hovered() {
+                                p.rect_filled(close_rect, egui::CornerRadius::same(4), tk.p.active);
+                            }
+                            let c = if close.hovered() { tk.p.text } else { tk.p.muted };
+                            p.text(close_rect.center(), egui::Align2::CENTER_CENTER, icon::X, egui::FontId::proportional(11.0), c);
+                        }
+                        let dot = egui::Rect::from_min_size(egui::pos2(rect.left() + 10.0, rect.center().y - 7.0), Vec2::splat(14.0));
+                        let mut child = ui.new_child(egui::UiBuilder::new().id_salt(("session-tab-dot", id)).max_rect(dot));
+                        widgets::status_dot(&mut child, &tk, status, unread, time);
+                        if close.clicked() || r.middle_clicked() {
+                            action = Some(TabAction::Close(id.clone()));
+                        } else if r.clicked() && !on {
+                            action = Some(TabAction::Open(id.clone()));
+                        }
+                        r.on_hover_text(format!("{title}\n{}", widgets::short_path(&cwd))).context_menu(|ui| {
+                            if ui.button(format!("{}  {}", icon::X, t("sessionTabs.close"))).clicked() {
+                                action = Some(TabAction::Close(id.clone()));
+                                ui.close();
+                            }
+                            if ui.button(format!("{}  {}", icon::X_SQUARE, t("sessionTabs.closeOthers"))).clicked() {
+                                action = Some(TabAction::CloseOthers(id.clone()));
+                                ui.close();
+                            }
+                        });
+                    }
+                    let (rect, r) = ui.allocate_exact_size(Vec2::new(32.0, 32.0), Sense::click());
+                    if r.hovered() {
+                        ui.painter().rect_filled(rect.shrink(4.0), egui::CornerRadius::same(5), tk.p.hover);
+                    }
+                    let c = if r.hovered() { tk.p.text } else { tk.p.muted };
+                    ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, icon::PLUS, egui::FontId::proportional(13.0), c);
+                    if r.on_hover_text(t("sidebar.newThreadHere")).clicked() {
+                        if let Err(e) = crate::commands::new_thread(app, &json!({ "projectId": project_id }), false) {
+                            app.toast_err(&e);
+                        }
+                    }
+                });
+            });
+    });
+    widgets::hline(ui, &tk);
+    match action {
+        Some(TabAction::Open(id)) => app.select_thread(&id),
+        Some(TabAction::Close(id)) => app.close_tab(&id),
+        Some(TabAction::CloseOthers(id)) => {
+            let _ = crate::commands::run_ui(app, "ui.thread.close-others", &json!({ "id": id }));
+        }
+        None => {}
+    }
 }
 
 fn thread_header(app: &mut LazyApp, ui: &mut egui::Ui, th: &lazyaicode_doc::ThreadView) {

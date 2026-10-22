@@ -252,6 +252,8 @@ fn screenshots() -> Result<(), String> {
             .arg(&data)
             .args(args)
             .env("GIT_CONFIG_GLOBAL", &gitconfig)
+            // a conta do Claude de quem gera não aparece no demo
+            .env_remove("CLAUDE_CONFIG_DIR")
             .output()
             .map_err(|e| e.to_string())?;
         serde_json::from_slice(&out.stdout).map_err(|e| format!("{args:?}: {e}: {}", String::from_utf8_lossy(&out.stderr)))
@@ -263,9 +265,13 @@ fn screenshots() -> Result<(), String> {
         projects.as_array().and_then(|a| a.iter().find(|p| p["name"] == "api")).and_then(|p| p["id"].as_str()).unwrap_or("").to_string();
     let t = cli(&["run", "thread.create", &format!("workspaceId={wid}"), &format!("projectId={pid}"), "isolated=false"])?;
     let tid = t["id"].as_str().unwrap_or("").to_string();
+    // as outras sessões abrem em abas ao lado da principal
+    let mut tabs = vec![];
     for title in ["Corrigir o parser de datas", "Revisar o README"] {
         let x = cli(&["run", "thread.create", &format!("workspaceId={wid}"), &format!("projectId={pid}"), "isolated=true"])?;
-        cli(&["run", "thread.rename", &format!("id={}", x["id"].as_str().unwrap_or("")), &format!("title={title}")])?;
+        let xid = x["id"].as_str().unwrap_or("").to_string();
+        cli(&["run", "thread.rename", &format!("id={xid}"), &format!("title={title}")])?;
+        tabs.extend(["--run".to_string(), format!("ui.thread.select {{\"id\":\"{xid}\"}}")]);
     }
 
     let out = root().join("book/src/images");
@@ -273,12 +279,16 @@ fn screenshots() -> Result<(), String> {
     let shots: Vec<(&str, Vec<String>)> = vec![
         (
             "thread.png",
-            vec![
-                "--run".into(),
-                format!("ui.thread.select {{\"id\":\"{tid}\"}}"),
-                "--run".into(),
-                "ui.thread.send {\"text\":\"Adicione uma função sub em src/lib.rs\"}".into(),
-            ],
+            [
+                tabs,
+                vec![
+                    "--run".into(),
+                    format!("ui.thread.select {{\"id\":\"{tid}\"}}"),
+                    "--run".into(),
+                    "ui.thread.send {\"text\":\"Adicione uma função sub em src/lib.rs\"}".into(),
+                ],
+            ]
+            .concat(),
         ),
         ("git-history.png", vec!["--run".into(), format!("ui.repo.open {{\"projectId\":\"{pid}\"}}")]),
         ("palette.png", vec!["--run".into(), "ui.palette.open {\"query\":\">thread\"}".into()]),
@@ -290,6 +300,7 @@ fn screenshots() -> Result<(), String> {
         c.arg("--data-dir").arg(&data).arg("--screenshot").arg(out.join(name)).args(["--size", "1280x800", "--frames", "70"]).args(&extra);
         // sem foto de autor: as capturas não dependem da rede
         c.env("GIT_CONFIG_GLOBAL", &gitconfig).env("LAZYAICODE_CLAUDE_BIN", &bin).env("LAZYAICODE_GRAVATAR_URL", "");
+        c.env_remove("CLAUDE_CONFIG_DIR");
         run(&mut c)?;
     }
     Ok(())

@@ -282,10 +282,31 @@ fn build() -> Vec<UiCmd> {
             ok()
         });
     }
-    r.add("ui.thread.close", "Close thread", "thread", None, |app, _| {
-        app.state.selected = None;
+    r.add("ui.thread.close", "sessionTabs.close", "thread", Some("Ctrl+Shift+W"), |app, p| {
+        let id = match p.get("id").and_then(Value::as_str) {
+            Some(id) => id.to_string(),
+            None => sel(app)?,
+        };
+        app.close_tab(&id);
         ok()
-    });
+    })
+    .params(vec![ParamInfo::opt("id", ParamType::String)])
+    .doc("Fecha a aba da sessão (a aberta, sem `id`) e abre a vizinha do mesmo projeto.");
+    r.add("ui.thread.close-others", "sessionTabs.closeOthers", "thread", None, |app, p| {
+        let id = match p.get("id").and_then(Value::as_str) {
+            Some(id) => id.to_string(),
+            None => sel(app)?,
+        };
+        let project = app.data.thread(&id).map(|t| t.thread.project_id.clone()).ok_or_else(|| t("palette.threadNotFound"))?;
+        let others: Vec<String> = app.project_tabs(&project).into_iter().filter(|t| *t != id).collect();
+        app.state.open_tabs.retain(|t| !others.contains(t));
+        app.select_thread(&id);
+        ok()
+    })
+    .params(vec![ParamInfo::opt("id", ParamType::String)])
+    .doc("Fecha as outras abas do projeto da sessão e deixa só ela.");
+    r.add("ui.thread.next-tab", "sessionTabs.next", "thread", Some("Ctrl+Shift+PageDown"), |app, _| step_session_tab(app, 1));
+    r.add("ui.thread.prev-tab", "sessionTabs.prev", "thread", Some("Ctrl+Shift+PageUp"), |app, _| step_session_tab(app, -1));
     r.add("ui.thread.rename", "thread.renameHint", "thread", Some("F2"), |app, p| {
         let id = sel(app)?;
         match p.get("title").and_then(Value::as_str) {
@@ -1103,6 +1124,18 @@ fn cycle_tab(app: &mut LazyApp, d: i32) -> Result<Value, String> {
     let n = tabs.len() as i32;
     if let Some(t) = tabs.get(((i + d).rem_euclid(n.max(1))) as usize) {
         app.state.tab = *t;
+    }
+    ok()
+}
+
+/// A aba vizinha entre as sessões abertas do projeto (dá a volta).
+fn step_session_tab(app: &mut LazyApp, d: i32) -> Result<Value, String> {
+    let id = sel(app)?;
+    let project = app.selected().map(|t| t.thread.project_id.clone()).unwrap_or_default();
+    let tabs = app.project_tabs(&project);
+    let i = tabs.iter().position(|t| *t == id).unwrap_or(0) as i32;
+    if let Some(next) = tabs.get((i + d).rem_euclid(tabs.len().max(1) as i32) as usize).cloned() {
+        app.select_thread(&next);
     }
     ok()
 }

@@ -148,6 +148,9 @@ pub struct UiState {
     pub tab: MainTab,
     /// thread aberta
     pub selected: Option<String>,
+    /// as sessões abertas em abas, na ordem da barra (do workspace ativo;
+    /// a barra mostra as do projeto da aberta)
+    pub open_tabs: Vec<String>,
     /// repositório aberto na tela do repositório (sem thread)
     pub repo_project: Option<String>,
     pub sidebar_open: bool,
@@ -186,6 +189,7 @@ impl Default for UiState {
         Self {
             tab: MainTab::Chat,
             selected: None,
+            open_tabs: vec![],
             repo_project: None,
             sidebar_open: true,
             sidebar_width: 264.0,

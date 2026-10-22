@@ -40,12 +40,11 @@ pub fn resolve(app: &mut LazyApp, yes: bool) -> bool {
     let Some((_, cmd, params)) = app.eph.confirm.take() else { return false };
     app.state.dialog = None;
     if yes {
-        let selected = app.state.selected.clone();
-        let deleting_selected = cmd == "thread.delete" && params["id"].as_str() == selected.as_deref();
+        let deleted = if cmd == "thread.delete" { params["id"].as_str().map(str::to_string) } else { None };
         app.call(&cmd, params, move |app, r| match r {
             Ok(_) => {
-                if deleting_selected {
-                    app.state.selected = None;
+                if let Some(id) = &deleted {
+                    app.close_tab(id);
                 }
                 app.toast("✓", ToastKind::Ok);
                 crate::views::git::refresh_current(app);
