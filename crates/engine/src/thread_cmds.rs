@@ -578,10 +578,17 @@ pub fn register(r: &mut Registry) {
                     let cwd = PathBuf::from(&t.cwd);
                     match p.mode.as_str() {
                         "merge" => {
-                            if git::branch_info(&cwd, t.base_ref.as_deref())?.dirty {
+                            // só o rastreado conta: o que rodar os testes deixa (`__pycache__`,
+                            // build) não entra no merge, e não pode impedi-lo
+                            if !git::git(&cwd, &["status", "--porcelain", "--untracked-files=no"])?.trim().is_empty() {
                                 anyhow::bail!("Há mudanças não commitadas na thread. Faça commit antes do merge.");
                             }
-                            git::merge_into(&repo, t.branch.as_deref().unwrap_or_default())
+                            let out = git::merge_into(&repo, t.branch.as_deref().unwrap_or_default())?;
+                            let left = git::git(&cwd, &["ls-files", "--others", "--exclude-standard"])?.lines().count();
+                            Ok(match left {
+                                0 => out,
+                                n => format!("{out}\n{n} arquivo(s) não rastreado(s) da thread ficaram de fora (sem commit)."),
+                            })
                         }
                         _ => {
                             let (base, _) = git::resolve_base(&cwd, "upstream", t.base_ref.as_deref(), None)?;

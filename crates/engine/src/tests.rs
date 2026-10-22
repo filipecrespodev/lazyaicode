@@ -430,3 +430,59 @@ async fn author_photo_comes_from_gravatar_and_is_remembered() {
     assert_eq!(e.run("system.avatar", json!({"email": "outro@example.com"})).await.unwrap(), Value::Null);
     assert!(e.run("system.avatar", json!({"email": "nada"})).await.is_err());
 }
+
+/// Num repositório sem remoto, a thread isolada nasce com a branch do
+/// checkout como base; as de antes (gravadas com `HEAD`, a branch da própria
+/// thread) são corrigidas ao abrir — senão a revisão não via os commits dela.
+#[tokio::test(flavor = "multi_thread")]
+async fn isolated_thread_without_remote_reviews_what_it_committed() {
+    let tmp = tempfile::tempdir().unwrap();
+    let ws = tmp.path().join("ws");
+    init_repo(&ws.join("app"));
+    let e = engine(tmp.path());
+    let w = e.run("workspace.create", json!({"path": ws.to_string_lossy()})).await.unwrap();
+    let projects = e.run("project.list", json!({"workspaceId": w["id"]})).await.unwrap();
+    let t = e.run("thread.create", json!({"workspaceId": w["id"], "projectId": projects[0]["id"], "isolated": true})).await.unwrap();
+    let tid = t["id"].as_str().unwrap().to_string();
+    assert_eq!(t["base_ref"], json!("main"));
+    let cwd = std::path::PathBuf::from(t["cwd"].as_str().unwrap());
+    std::fs::write(cwd.join("a.txt"), "um\ndois\n").unwrap();
+    git(&cwd, &["commit", "-q", "-am", "do agente"]);
+    let files = |ch: Value| ch["files"].as_array().unwrap().iter().map(|f| f["path"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+    assert_eq!(files(e.run("thread.changes", json!({"id": tid, "base": "upstream"})).await.unwrap()), vec!["a.txt"]);
+
+    // uma thread gravada do jeito antigo
+    e.run("thread.update", json!({"id": tid, "title": "x"})).await.unwrap();
+    e.core.store.lock().state.threads.iter_mut().for_each(|t| t.base_ref = Some("HEAD".into()));
+    e.core.store.lock().save().unwrap();
+    e.shutdown().await;
+    let e = engine(tmp.path());
+    let t = e.run("thread.get", json!({"id": tid})).await.unwrap();
+    assert_eq!(t["base_ref"], json!("main"));
+    assert_eq!(files(e.run("thread.changes", json!({"id": tid, "base": "upstream"})).await.unwrap()), vec!["a.txt"]);
+
+    // o que o teste deixou no checkout (`__pycache__`, build) não rastreado não
+    // impede o merge — só fica de fora, e a resposta diz
+    std::fs::create_dir_all(cwd.join("__pycache__")).unwrap();
+    std::fs::write(cwd.join("__pycache__/a.pyc"), "x").unwrap();
+    let out = e.run("thread.land", json!({"id": tid, "mode": "merge"})).await.unwrap();
+    assert!(out.as_str().unwrap().contains("1 arquivo"), "{out}");
+    assert_eq!(std::fs::read_to_string(ws.join("app/a.txt")).unwrap(), "um\ndois\n");
+    // uma mudança rastreada sem commit ainda impede
+    std::fs::write(cwd.join("a.txt"), "outra\n").unwrap();
+    assert!(e.run("thread.land", json!({"id": tid, "mode": "merge"})).await.is_err());
+    e.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_same_folder_is_not_two_workspaces() {
+    let tmp = tempfile::tempdir().unwrap();
+    let ws = tmp.path().join("ws");
+    init_repo(&ws.join("app"));
+    let e = engine(tmp.path());
+    e.run("workspace.create", json!({"path": ws.to_string_lossy(), "name": "Um"})).await.unwrap();
+    let again = e.run("workspace.create", json!({"path": format!("{}/", ws.to_string_lossy())})).await;
+    assert!(again.unwrap_err().to_string().contains("Um"));
+    assert_eq!(e.run("workspace.list", json!({})).await.unwrap()["workspaces"].as_array().unwrap().len(), 1);
+    e.shutdown().await;
+}

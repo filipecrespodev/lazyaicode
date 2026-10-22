@@ -542,6 +542,11 @@ pub(crate) fn create_workspace(s: &mut Store, path: &str, name: Option<String>, 
     if !p.is_dir() {
         return Err(EngineError::NotFound(format!("Pasta não encontrada: {path}")));
     }
+    // a mesma pasta duas vezes listaria cada sessão em dois workspaces
+    let same = |w: &&Workspace| Path::new(&w.path) == p || std::fs::canonicalize(&w.path).ok() == std::fs::canonicalize(&p).ok();
+    if let Some(w) = s.state.workspaces.iter().find(same) {
+        return Err(EngineError::BadParams(format!("A pasta já é o workspace {}", w.name)));
+    }
     let w = Workspace {
         id: uuid::Uuid::new_v4().to_string(),
         name: name

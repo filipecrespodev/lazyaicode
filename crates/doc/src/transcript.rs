@@ -269,6 +269,9 @@ impl Transcript {
             // o eco da mensagem que o CLI tirou da fila (`--replay-user-messages`):
             // quem mandou já a mostra
             "user" if msg["isReplay"] == true => {}
+            // o que o CLI põe na boca do usuário para o modelo (o corpo de um
+            // skill carregado, lembretes): ao vivo `isSynthetic`, no histórico `isMeta`
+            "user" if msg["isSynthetic"] == true || msg["isMeta"] == true => {}
             "user" => {
                 let c = &msg["message"]["content"];
                 if let Some(blocks) = c.as_array().filter(|b| b.iter().any(|x| s(&x["type"]) == "tool_result")) {
@@ -570,6 +573,16 @@ mod tests {
             t.apply(&json!({"type":"user","uuid":"u9","message":{"content":[{"type":"text","text":marker}]}}));
             assert_eq!(texts(&t), vec![format!("notice:{INTERRUPTED_NOTICE}")]);
         }
+    }
+
+    #[test]
+    fn what_the_cli_injects_as_the_user_is_not_shown() {
+        // o corpo de um skill carregado: ao vivo `isSynthetic`, no histórico `isMeta`
+        let mut t = Transcript::new();
+        for flag in ["isSynthetic", "isMeta"] {
+            t.apply(&json!({"type":"user", flag: true, "message":{"content":[{"type":"text","text":"Base directory for this skill: /x\n# Skill"}]}}));
+        }
+        assert!(t.items.is_empty(), "{:?}", texts(&t));
     }
 
     #[test]

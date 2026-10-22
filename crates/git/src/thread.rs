@@ -60,7 +60,7 @@ fn fetch_with_timeout(repo: &Path, secs: u64) {
     }
 }
 
-/// Branch padrão do remoto (`origin/HEAD`), ou `HEAD` local sem remoto.
+/// Branch padrão do remoto (`origin/HEAD`) ou, sem remoto, a branch do checkout.
 pub fn default_base(repo: &Path) -> String {
     if let Ok(r) = git(repo, &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]) {
         return r.trim().to_string();
@@ -70,7 +70,12 @@ pub fn default_base(repo: &Path) -> String {
             return c.to_string();
         }
     }
-    "HEAD".into()
+    // sem remoto: a branch do checkout (num checkout isolado, `HEAD` seria a
+    // branch da própria thread, e o que o agente commita sumiria da revisão)
+    if let Some(b) = git(repo, &["symbolic-ref", "--short", "-q", "HEAD"]).ok().map(|b| b.trim().to_string()).filter(|b| !b.is_empty()) {
+        return b;
+    }
+    git(repo, &["rev-parse", "HEAD"]).map(|h| h.trim().to_string()).unwrap_or_else(|_| "HEAD".into())
 }
 
 pub struct Isolated {
@@ -377,7 +382,9 @@ mod tests {
         let dest = r.path().parent().unwrap().join(format!("wt-{}", uuid::Uuid::new_v4().simple()));
         let iso = create_isolated(r.path(), &dest, "abc123", false).unwrap();
         assert_eq!(iso.branch, "lazy/abc123");
-        assert_eq!(iso.base_ref, "HEAD");
+        // sem remoto, a base é a branch do checkout principal — `HEAD`, no
+        // checkout isolado, seria a própria branch da thread
+        assert_eq!(iso.base_ref, "main");
 
         std::fs::write(dest.join("a.txt"), "um\ndois\ntres\n").unwrap();
         std::fs::write(dest.join("novo.rs"), "fn main() {}\n").unwrap();
@@ -398,6 +405,26 @@ mod tests {
 
         remove_isolated(r.path(), &dest).unwrap();
         assert!(!dest.exists());
+    }
+
+    #[test]
+    fn what_the_agent_commits_in_an_isolated_checkout_stays_in_the_review() {
+        let r = repo();
+        let dest = r.path().parent().unwrap().join(format!("wt-{}", uuid::Uuid::new_v4().simple()));
+        let iso = create_isolated(r.path(), &dest, "def456", false).unwrap();
+        std::fs::write(dest.join("a.txt"), "um\ndois\ntres\n").unwrap();
+        git(&dest, &["commit", "-q", "-am", "feito pelo agente"]).unwrap();
+        // e a main andou por fora, depois que a thread nasceu
+        std::fs::write(r.path().join("b.txt"), "b\n").unwrap();
+        git(r.path(), &["add", "b.txt"]).unwrap();
+        git(r.path(), &["commit", "-q", "-m", "na main"]).unwrap();
+
+        let (base, _) = resolve_base(&dest, "upstream", Some(&iso.base_ref), None).unwrap();
+        let paths: Vec<_> = changes(&dest, &base, "").unwrap().files.into_iter().map(|f| f.path).collect();
+        assert_eq!(paths, vec!["a.txt"]);
+        let info = branch_info(&dest, Some(&iso.base_ref)).unwrap();
+        assert_eq!((info.ahead, info.behind), (1, 1));
+        remove_isolated(r.path(), &dest).unwrap();
     }
 
     #[test]

@@ -170,7 +170,8 @@ pub fn find_command(id: &str) -> Option<CommandInfo> {
 impl Engine {
     pub fn new(opts: EngineOpts) -> Self {
         let data_dir = opts.data_dir.unwrap_or_else(store::data_dir);
-        let store = if opts.ephemeral { Store::memory() } else { Store::load(&data_dir) };
+        let mut store = if opts.ephemeral { Store::memory() } else { Store::load(&data_dir) };
+        fix_isolated_bases(&mut store);
         let (bus, _) = broadcast::channel(8192);
         let core = Arc::new(Core {
             store: Mutex::new(store),
@@ -365,3 +366,21 @@ pub(crate) async fn blocking<T: Send + 'static>(f: impl FnOnce() -> anyhow::Resu
 
 #[cfg(test)]
 mod tests;
+
+/// Threads isoladas criadas num repositório sem remoto gravavam `HEAD` como
+/// base: no checkout isolado, é a branch da própria thread, e a revisão, o
+/// "à frente/atrás" e o integrar deixavam de ver o que o agente commitava.
+/// A base passa a ser a branch do checkout principal.
+fn fix_isolated_bases(store: &mut Store) {
+    let st = &mut store.state;
+    let mut fixed = false;
+    for t in st.threads.iter_mut().filter(|t| t.isolated && t.base_ref.as_deref() == Some("HEAD")) {
+        if let Some(p) = st.projects.iter().find(|p| p.id == t.project_id) {
+            t.base_ref = Some(lazyaicode_git::thread::default_base(std::path::Path::new(&p.path)));
+            fixed = true;
+        }
+    }
+    if fixed {
+        let _ = store.save();
+    }
+}
