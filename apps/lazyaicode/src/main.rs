@@ -168,6 +168,10 @@ fn cpu_frame_with(app: &mut LazyApp, size: (u32, u32), frames: u32, between: Dur
             focused: true,
             ..Default::default()
         };
+        // o contexto é novo: sem isto, o que entra animado (diálogos, painéis)
+        // sairia no primeiro passo da animação — a captura do canal de
+        // controle roda dois quadros com o relógio parado
+        ctx.global_style_mut(|s| s.animation_time = 0.0);
         let out = ctx.run_ui(input, |ui| {
             egui::CentralPanel::no_frame().show(ui, |ui| app.ui(ui));
         });

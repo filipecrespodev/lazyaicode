@@ -139,30 +139,7 @@ pub fn new_workspace_modal(app: &mut LazyApp, ctx: &egui::Context) {
                 .add_enabled(ok, egui::Button::new(RichText::new(t("newWorkspace.create")).color(tk.on_accent)).fill(tk.p.accent))
                 .clicked()
             {
-                let p = json!({
-                    "path": app.eph.new_workspace_path.trim(),
-                    "name": app.eph.new_workspace_name.trim(),
-                    "claudeDir": app.eph.new_workspace_account.clone().unwrap_or_else(|| app.data.suggested_claude_dir.clone()),
-                });
-                app.call_ok("workspace.create", p, |app, v| {
-                    app.eph.new_workspace_path.clear();
-                    app.eph.new_workspace_name.clear();
-                    app.eph.new_workspace_account = None;
-                    app.state.new_workspace_open = false;
-                    app.refresh_workspaces(false);
-                    if let Some(id) = v["id"].as_str() {
-                        app.data.workspaces.push(serde_json::from_value(v.clone()).unwrap_or_else(|_| lazyaicode_doc::Workspace {
-                            id: id.into(),
-                            name: String::new(),
-                            path: String::new(),
-                            claude_dir: None,
-                            ignored_paths: vec![],
-                            created_at: 0,
-                        }));
-                        let id = id.to_string();
-                        app.open_workspace(&id, None);
-                    }
-                });
+                let _ = crate::commands::run_ui(app, "ui.workspace.create", &serde_json::Value::Null);
             }
             if ui.button(t("app.cancel")).clicked() {
                 close = true;
@@ -172,4 +149,37 @@ pub fn new_workspace_modal(app: &mut LazyApp, ctx: &egui::Context) {
     if close || modal.should_close() {
         app.state.new_workspace_open = false;
     }
+}
+
+/// O "Criar workspace" do diálogo, com a pasta, o nome e a conta escolhidos
+/// nele (`ui.workspace.create`); a resposta abre o workspace novo.
+pub fn create_workspace(app: &mut LazyApp) -> Result<(), String> {
+    if app.eph.new_workspace_path.trim().is_empty() {
+        return Err("falta a pasta (`ui.workspace.set-path`)".into());
+    }
+    let p = json!({
+        "path": app.eph.new_workspace_path.trim(),
+        "name": app.eph.new_workspace_name.trim(),
+        "claudeDir": app.eph.new_workspace_account.clone().unwrap_or_else(|| app.data.suggested_claude_dir.clone()),
+    });
+    app.call_ok("workspace.create", p, |app, v| {
+        app.eph.new_workspace_path.clear();
+        app.eph.new_workspace_name.clear();
+        app.eph.new_workspace_account = None;
+        app.state.new_workspace_open = false;
+        app.refresh_workspaces(false);
+        if let Some(id) = v["id"].as_str() {
+            app.data.workspaces.push(serde_json::from_value(v.clone()).unwrap_or_else(|_| lazyaicode_doc::Workspace {
+                id: id.into(),
+                name: String::new(),
+                path: String::new(),
+                claude_dir: None,
+                ignored_paths: vec![],
+                created_at: 0,
+            }));
+            let id = id.to_string();
+            app.open_workspace(&id, None);
+        }
+    });
+    Ok(())
 }

@@ -2,7 +2,7 @@
 
 > Gerado por `cargo xtask commands` — não edite à mão.
 
-São **528** comandos: 250 do motor (rodam na CLI, no canal de controle, no MCP e na UI) e 278 de tela (`ui.*`, só no app aberto, pelo `ui.run` do canal de controle). Parâmetros com `?` são opcionais.
+São **529** comandos: 250 do motor (rodam na CLI, no canal de controle, no MCP e na UI) e 279 de tela (`ui.*`, só no app aberto, pelo `ui.run` do canal de controle). Parâmetros com `?` são opcionais.
 
 ## Motor
 
@@ -658,6 +658,7 @@ São **528** comandos: 250 do motor (rodam na CLI, no canal de controle, no MCP 
 | Comando | Descrição | Parâmetros | Atalho |
 |---|---|---|---|
 | `ui.workspace.new` | New workspace |  | `Ctrl+Shift+O` |
+| `ui.workspace.create` | Create workspace — O botão Criar do diálogo de workspace novo: cria com a pasta, o nome e a conta dele e abre. |  |  |
 | `ui.workspace.pick` | Which workspaces to open? |  |  |
 | `ui.workspace.open` | Open workspace — Abre o workspace: na janela onde ele já está, ou numa janela nova (no desktop); na web, numa aba. | `id` |  |
 | `ui.activity.toggle` | Sessions across all workspaces — Mostra / esconde as sessões de todos os workspaces que rodam, esperam você ou terminaram sem ser lidas. |  | `Ctrl+Shift+D` |

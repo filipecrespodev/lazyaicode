@@ -317,6 +317,7 @@ fn table(ctx: &Ctx) -> Vec<(&'static str, Value, Expect)> {
         ("ui.settings.close", e(), Y),
         ("ui.workspace.new", e(), Y),
         ("ui.workspace.set-path", json!({"path": ctx.ws}), Y),
+        ("ui.workspace.create", e(), Fails("a pasta já é um workspace")),
         ("ui.state.set", json!({"patch": {"newWorkspaceOpen": false}}), Y),
         ("ui.workspace.pick", e(), Y),
         ("ui.state.set", json!({"patch": {"pickingWorkspaces": false}}), Y),
@@ -988,5 +989,33 @@ fn each_workspace_opens_in_its_own_window() {
     assert_eq!(kids[1]["workspace"], w3);
 
     let Harness { rt, engine, .. } = h;
+    rt.block_on(engine.shutdown());
+}
+
+/// A captura em CPU de dentro do app (`ui.screenshot {"cpu": true}`) monta um
+/// contexto novo e roda dois quadros com o relógio parado: um diálogo que
+/// entra com animação saía quase transparente, sem o fundo escurecido.
+#[test]
+fn cpu_screenshot_shows_dialogs_fully_drawn() {
+    let tmp = tempfile::tempdir().unwrap();
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+    let engine = {
+        let _g = rt.enter();
+        Engine::new(EngineOpts { data_dir: Some(tmp.path().join("data")), ephemeral: true })
+    };
+    let wake: local::Wake = Arc::new(OnceLock::new());
+    let client = local::LocalClient::new(engine.clone(), rt.handle().clone(), wake, egui::ViewportId::ROOT);
+    let inbox = Inbox::default();
+    let host = TestHost { inbox: inbox.clone(), png: tmp.path().join("x.png"), folder: tmp.path().to_path_buf() };
+    let mut app = LazyApp::new(Box::new(client), Box::new(host), inbox);
+    app.state.new_workspace_open = true;
+    let png = crate::cpu_frame(&mut app, (400, 300), 2, Duration::ZERO).expect("png");
+    let img = image::load_from_memory(&png).unwrap().to_rgba8();
+    // o canto, fora do diálogo, fica sob o fundo escurecido do modal
+    let corner = img.get_pixel(2, 297);
+    let lum = |r: u8, g: u8, b: u8| u32::from(r) + u32::from(g) + u32::from(b);
+    let painted = lum(corner[0], corner[1], corner[2]);
+    let dlg = img.get_pixel(200, 150);
+    assert!(lum(dlg[0], dlg[1], dlg[2]) > painted + 15, "o diálogo some no fundo: diálogo {dlg:?}, canto {corner:?}");
     rt.block_on(engine.shutdown());
 }

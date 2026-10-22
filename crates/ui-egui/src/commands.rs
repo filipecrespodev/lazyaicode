@@ -577,6 +577,11 @@ fn build() -> Vec<UiCmd> {
         app.state.new_workspace_open = true;
         ok()
     });
+    r.add("ui.workspace.create", "newWorkspace.create", "workspace", None, |app, _| {
+        crate::views::workspace_picker::create_workspace(app)?;
+        ok()
+    })
+    .doc("O botão Criar do diálogo de workspace novo: cria com a pasta, o nome e a conta dele e abre.");
     r.add("ui.workspace.pick", "workspacePicker.title", "workspace", None, |app, _| {
         app.eph.picker_checked = app.state.open_workspaces.clone();
         app.state.picking_workspaces = true;
