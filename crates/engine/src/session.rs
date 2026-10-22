@@ -12,6 +12,24 @@ use serde_json::{json, Value};
 
 use crate::Engine;
 
+/// Se o CLI tirou da fila tudo o que recebeu. Com `--replay-user-messages`
+/// ele devolve cada mensagem ao começar a respondê-la — as que chegam
+/// durante um turno são juntadas num eco só, com os blocos de todas —, então
+/// o fim de um turno com blocos ainda na fila não é o fim: vem outro.
+#[derive(Debug, Default)]
+pub struct Queue {
+    /// blocos (texto, imagem) mandados e ainda não devolvidos
+    pub pending: u64,
+    /// este processo devolve as mensagens (sem eco, vale o fim do turno)
+    pub replays: bool,
+    /// mensagens do agente até agora (o vigia vê se algo chegou)
+    pub seen: u64,
+}
+
+/// Quanto o fim de um turno espera o próximo começar antes de dar a thread
+/// por parada (o eco que não veio, uma mensagem que o CLI descartou).
+const NEXT_TURN_GRACE: std::time::Duration = std::time::Duration::from_secs(15);
+
 impl Engine {
     /// Transcrição das threads ACP (o app grava; não há .jsonl comum entre
     /// os provedores).
@@ -39,6 +57,7 @@ impl Engine {
                 AgentOut::Message(msg) => app.on_agent_message(tid, msg),
                 AgentOut::Exit { code, stderr } => {
                     app.core.permissions.lock().remove(tid);
+                    app.core.queued.lock().remove(tid);
                     app.core.interrupted.lock().remove(tid);
                     let running = app.status_of(tid) != Status::Idle;
                     let failed = code.is_some_and(|c| c != 0) && running;
@@ -52,6 +71,23 @@ impl Engine {
         })
     }
 
+    /// Depois de um turno com mensagem na fila: se o CLI não disser mais nada
+    /// em [`NEXT_TURN_GRACE`], a thread para (nunca fica "rodando" à toa).
+    fn watch_next_turn(&self, tid: &str, seen: u64) {
+        let Ok(rt) = tokio::runtime::Handle::try_current() else { return };
+        let weak = Arc::downgrade(&self.core);
+        let tid = tid.to_string();
+        rt.spawn(async move {
+            tokio::time::sleep(NEXT_TURN_GRACE).await;
+            let Some(core) = weak.upgrade() else { return };
+            let app = Engine { core };
+            let quiet = app.core.queued.lock().get_mut(&tid).filter(|q| q.seen == seen).map(|q| q.pending = 0).is_some();
+            if quiet && app.status_of(&tid) == Status::Running {
+                app.set_status(&tid, Status::Idle);
+            }
+        });
+    }
+
     fn on_agent_message(&self, tid: &str, msg: Value) {
         if self.core.acp.is_running(tid) && matches!(msg["type"].as_str(), Some("assistant" | "user" | "result" | "lazy_notice")) {
             self.append_transcript(tid, &msg);
@@ -59,6 +95,21 @@ impl Engine {
         // o que muda na thread; o status sai depois do evento, para quem
         // espera o fim do turno já ter recebido o `result`
         let mut next_status = None;
+        if let Some(q) = self.core.queued.lock().get_mut(tid) {
+            q.seen += 1;
+        }
+        if msg["type"] == "user" && msg["isReplay"] == true {
+            let blocks = msg["message"]["content"].as_array().map_or(1, Vec::len) as u64;
+            let mut queued = self.core.queued.lock();
+            let q = queued.entry(tid.to_string()).or_default();
+            q.pending = q.pending.saturating_sub(blocks);
+            q.replays = true;
+            drop(queued);
+            // começou um turno (o da fila, mesmo depois de uma interrupção)
+            if !matches!(self.status_of(tid), Status::Running | Status::Awaiting) {
+                next_status = Some(Status::Running);
+            }
+        }
         match (msg["type"].as_str(), msg["subtype"].as_str()) {
             (Some("system"), Some("init")) => {
                 if let Some(sid) = msg["session_id"].as_str() {
@@ -83,7 +134,23 @@ impl Engine {
                 self.core.permissions.lock().remove(tid);
                 let stopped = self.core.interrupted.lock().remove(tid) || lazyaicode_doc::transcript::was_interrupted(&msg);
                 let failed = msg["is_error"].as_bool().unwrap_or(false) && !stopped;
-                next_status = Some(if failed { Status::Error } else { Status::Idle });
+                let more = match self.core.queued.lock().get_mut(tid) {
+                    // a interrupção pode ter levado a fila junto; se não levou, o eco reabre
+                    Some(q) if stopped => {
+                        q.pending = 0;
+                        None
+                    }
+                    Some(q) if q.replays && q.pending > 0 => Some(q.seen),
+                    _ => None,
+                };
+                next_status = Some(match more {
+                    Some(seen) => {
+                        self.watch_next_turn(tid, seen);
+                        Status::Running
+                    }
+                    None if failed => Status::Error,
+                    None => Status::Idle,
+                });
             }
             (Some("control_request"), _) if msg["request"]["subtype"] == "can_use_tool" => {
                 let r = &msg["request"];

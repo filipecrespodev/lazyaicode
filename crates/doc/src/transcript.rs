@@ -266,6 +266,9 @@ impl Transcript {
                     }
                 }
             }
+            // o eco da mensagem que o CLI tirou da fila (`--replay-user-messages`):
+            // quem mandou já a mostra
+            "user" if msg["isReplay"] == true => {}
             "user" => {
                 let c = &msg["message"]["content"];
                 if let Some(blocks) = c.as_array().filter(|b| b.iter().any(|x| s(&x["type"]) == "tool_result")) {
@@ -567,6 +570,14 @@ mod tests {
             t.apply(&json!({"type":"user","uuid":"u9","message":{"content":[{"type":"text","text":marker}]}}));
             assert_eq!(texts(&t), vec![format!("notice:{INTERRUPTED_NOTICE}")]);
         }
+    }
+
+    #[test]
+    fn the_cli_echo_of_a_sent_message_is_not_shown_twice() {
+        let mut t = Transcript::new();
+        t.add_local_user("oi", vec![]);
+        t.apply(&json!({"type":"user","isReplay":true,"uuid":"u1","message":{"content":[{"type":"text","text":"oi"}]}}));
+        assert_eq!(texts(&t), vec!["user:oi"]);
     }
 
     #[test]

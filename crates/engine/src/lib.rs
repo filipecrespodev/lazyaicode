@@ -125,6 +125,8 @@ pub(crate) struct Core {
     /// threads com um `thread.interrupt` à espera do fim do turno: o
     /// `result` com erro que vem depois é a parada, não uma falha
     pub interrupted: Mutex<std::collections::HashSet<String>>,
+    /// o que foi mandado ao CLI e ele ainda não tirou da fila, por thread
+    pub queued: Mutex<HashMap<String, session::Queue>>,
     pub data_dir: PathBuf,
     pub sessions: Mutex<sessions::SessionCache>,
     /// resposta da sondagem do CLI por (conta, pasta), com o instante
@@ -179,6 +181,7 @@ impl Engine {
             status: Mutex::new(HashMap::new()),
             permissions: Mutex::new(HashMap::new()),
             interrupted: Mutex::new(std::collections::HashSet::new()),
+            queued: Mutex::new(HashMap::new()),
             data_dir,
             sessions: Mutex::new(sessions::SessionCache::default()),
             capabilities: Mutex::new(HashMap::new()),

@@ -168,8 +168,14 @@ async fn send_streams_agent_events_and_updates_the_thread() {
              echo '{\"type\":\"control_cancel_request\",\"request_id\":\"p1\"}'\n\
              echo '{\"type\":\"result\",\"subtype\":\"error_during_execution\",\"is_error\":true,\"terminal_reason\":\"aborted_streaming\",\"errors\":[\"[ede_diagnostic] result_type=user\"]}';;\n\
            *'peça permissão'*)\n\
+             printf '%s\\n' \"$l\" | sed 's/^{/{\"isReplay\":true,/'\n\
              echo '{\"type\":\"control_request\",\"request_id\":\"p1\",\"request\":{\"subtype\":\"can_use_tool\",\"tool_name\":\"Bash\",\"input\":{\"command\":\"make\"}}}';;\n\
+           *'devagar'*)\n\
+             printf '%s\\n' \"$l\" | sed 's/^{/{\"isReplay\":true,/'\n\
+             sleep 1\n\
+             echo '{\"type\":\"result\",\"is_error\":false,\"duration_ms\":5,\"total_cost_usd\":0}';;\n\
            *'\"type\":\"user\"'*)\n\
+             printf '%s\\n' \"$l\" | sed 's/^{/{\"isReplay\":true,/'\n\
              echo '{\"type\":\"assistant\",\"message\":{\"id\":\"m1\",\"content\":[{\"type\":\"text\",\"text\":\"feito\"}]}}'\n\
              echo '{\"type\":\"result\",\"is_error\":false,\"duration_ms\":5,\"total_cost_usd\":0}';;\n\
            esac\n\
@@ -238,6 +244,26 @@ async fn send_streams_agent_events_and_updates_the_thread() {
     }
     assert_eq!(seen.last().map(String::as_str), Some("idle"), "status depois do Esc: {seen:?}");
     assert_eq!(e.run("thread.pending-permission", json!({"id": tid})).await.unwrap(), Value::Null);
+
+    // uma mensagem mandada com o turno rodando entra na fila do CLI: o fim do
+    // primeiro turno não é o fim — a thread só para depois de responder a ela
+    e.run("thread.send", json!({"id": tid, "text": "devagar"})).await.unwrap();
+    e.run("thread.send", json!({"id": tid, "text": "e mais isto"})).await.unwrap();
+    let (mut results, mut seen) = (0, vec![]);
+    loop {
+        let ev = tokio::time::timeout_at(deadline, rx.recv()).await.expect("a fila não terminou").unwrap();
+        if ev.event == events::AGENT_EVENT && ev.payload["msg"]["type"] == "result" {
+            results += 1;
+        }
+        if ev.event == events::THREAD_STATUS {
+            let s = ev.payload["status"].as_str().unwrap_or("").to_string();
+            seen.push(s.clone());
+            if s == "idle" {
+                break;
+            }
+        }
+    }
+    assert_eq!(results, 2, "parou depois do primeiro turno, com uma mensagem na fila: {seen:?}");
     e.shutdown().await;
 }
 

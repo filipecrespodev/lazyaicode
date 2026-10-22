@@ -87,6 +87,9 @@ pub fn build_args(o: &SpawnOpts) -> Vec<String> {
         "stream-json",
         "--verbose",
         "--include-partial-messages",
+        // o CLI devolve cada mensagem quando a tira da fila: é como o motor
+        // sabe se o fim de um turno é o fim, ou se há mensagem esperando
+        "--replay-user-messages",
         "--permission-prompt-tool",
         "stdio",
     ]
@@ -443,6 +446,8 @@ mod tests {
         assert!(!a.contains(&"--permission-mode".to_string()));
         assert!(a.windows(2).any(|w| w == ["--resume", "abc"]));
         assert!(a.windows(2).any(|w| w == ["--permission-prompt-tool", "stdio"]));
+        // sem o eco, o motor não sabe se há mensagem na fila depois de um turno
+        assert!(a.contains(&"--replay-user-messages".to_string()));
     }
 
     /// Um "claude" falso: ecoa cada linha do stdin com o tipo trocado, e sai

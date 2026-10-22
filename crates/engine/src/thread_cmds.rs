@@ -841,7 +841,13 @@ pub(crate) async fn send_message(e: &Engine, id: &str, text: String, images: Vec
         )
         .await?;
     e.set_status(id, Status::Running);
-    e.core.agents.send_user(id, &text, &images).await?;
+    // antes de escrever: o eco do CLI pode chegar antes de `send_user` voltar
+    let blocks = lazyaicode_agent::agent::user_content(&text, &images).len() as u64;
+    e.core.queued.lock().entry(id.to_string()).or_default().pending += blocks;
+    if let Err(err) = e.core.agents.send_user(id, &text, &images).await {
+        e.core.queued.lock().remove(id);
+        return Err(err.into());
+    }
     Ok(())
 }
 
