@@ -122,6 +122,9 @@ pub(crate) struct Core {
     pub status: Mutex<HashMap<String, Status>>,
     /// pedido de permissão aberto por thread (`thread.pending-permission`)
     pub permissions: Mutex<HashMap<String, Value>>,
+    /// threads com um `thread.interrupt` à espera do fim do turno: o
+    /// `result` com erro que vem depois é a parada, não uma falha
+    pub interrupted: Mutex<std::collections::HashSet<String>>,
     pub data_dir: PathBuf,
     pub sessions: Mutex<sessions::SessionCache>,
     /// resposta da sondagem do CLI por (conta, pasta), com o instante
@@ -175,6 +178,7 @@ impl Engine {
             terminals: terminal::Terminals::default(),
             status: Mutex::new(HashMap::new()),
             permissions: Mutex::new(HashMap::new()),
+            interrupted: Mutex::new(std::collections::HashSet::new()),
             data_dir,
             sessions: Mutex::new(sessions::SessionCache::default()),
             capabilities: Mutex::new(HashMap::new()),

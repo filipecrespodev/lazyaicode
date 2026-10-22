@@ -4,7 +4,7 @@
 use base64::Engine as _;
 use egui::{Color32, CornerRadius, RichText, Sense, Stroke, Vec2};
 use egui_phosphor::regular as icon;
-use lazyaicode_doc::transcript::{tool_summary, Decision, Item};
+use lazyaicode_doc::transcript::{tool_summary, Decision, Item, INTERRUPTED_NOTICE};
 use lazyaicode_i18n::{t, tf};
 use serde_json::Value;
 
@@ -99,9 +99,10 @@ pub fn item(app: &mut LazyApp, ui: &mut egui::Ui, thread: &str, it: &Item) {
         Item::Permission { key, request_id, tool_name, input, reason, suggestions, decided, .. } => {
             permission_card(app, ui, thread, key, request_id, tool_name, input, reason.as_deref(), !suggestions.is_empty(), *decided)
         }
-        Item::Result { duration_ms, cost_usd, is_error, text, .. } => {
+        Item::Result { duration_ms, cost_usd, is_error, interrupted, text, .. } => {
             let mut s = String::new();
-            if *is_error {
+            // a interrupção já aparece no aviso logo acima
+            if *is_error && !*interrupted {
                 s.push_str(&format!(
                     "{}  {} · ",
                     icon::WARNING,
@@ -123,6 +124,11 @@ pub fn item(app: &mut LazyApp, ui: &mut egui::Ui, thread: &str, it: &Item) {
                         ui.add(egui::Label::new(RichText::new(text).monospace().color(tk.del_fg)).wrap().selectable(true));
                     });
                 },
+            );
+        }
+        Item::Notice { text, .. } if text == INTERRUPTED_NOTICE => {
+            ui.label(
+                RichText::new(format!("{}  {}", icon::STOP_CIRCLE, t("thread.interrupted"))).size(tk.text_size - 1.0).color(tk.p.muted),
             );
         }
         Item::Notice { text, .. } => {

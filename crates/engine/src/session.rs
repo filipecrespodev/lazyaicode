@@ -39,6 +39,7 @@ impl Engine {
                 AgentOut::Message(msg) => app.on_agent_message(tid, msg),
                 AgentOut::Exit { code, stderr } => {
                     app.core.permissions.lock().remove(tid);
+                    app.core.interrupted.lock().remove(tid);
                     let running = app.status_of(tid) != Status::Idle;
                     let failed = code.is_some_and(|c| c != 0) && running;
                     app.set_status(tid, if failed { Status::Error } else { Status::Idle });
@@ -80,7 +81,8 @@ impl Engine {
                     self.emit(events::THREAD_UPDATED, json!(self.view(&t)));
                 }
                 self.core.permissions.lock().remove(tid);
-                let failed = msg["is_error"].as_bool().unwrap_or(false);
+                let stopped = self.core.interrupted.lock().remove(tid) || lazyaicode_doc::transcript::was_interrupted(&msg);
+                let failed = msg["is_error"].as_bool().unwrap_or(false) && !stopped;
                 next_status = Some(if failed { Status::Error } else { Status::Idle });
             }
             (Some("control_request"), _) if msg["request"]["subtype"] == "can_use_tool" => {
@@ -96,6 +98,20 @@ impl Engine {
                     }),
                 );
                 next_status = Some(Status::Awaiting);
+            }
+            // o CLI desistiu do pedido (interrupção, hook): ninguém mais responde a ele
+            (Some("control_cancel_request"), _) => {
+                let cancelled = {
+                    let mut perms = self.core.permissions.lock();
+                    let hit = perms.get(tid).is_some_and(|p| p["requestId"] == msg["request_id"]);
+                    if hit {
+                        perms.remove(tid);
+                    }
+                    hit
+                };
+                if cancelled && self.status_of(tid) == Status::Awaiting {
+                    next_status = Some(Status::Running);
+                }
             }
             _ => {}
         }

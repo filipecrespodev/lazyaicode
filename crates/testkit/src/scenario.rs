@@ -515,6 +515,10 @@ fn threads(sw: &mut Sweep, ids: &Ids) {
     let w = sw.ok("thread.wait", json!({"id": id, "timeoutMs": 15000}));
     sw.check(w.to_string().contains("awaiting"), format!("pedido de novo: {}", short(&w)));
     let pp = sw.ok("thread.pending-permission", json!({"id": id}));
+    // uma resposta a outro pedido (atrasada, de outro cliente) não some com o pendente
+    sw.err("thread.respond-permission", json!({"id": id, "requestId": "outro-pedido", "allow": false}), "requestId que não é o pendente");
+    let still = sw.ok("thread.pending-permission", json!({"id": id}));
+    sw.check(still["requestId"] == pp["requestId"], format!("o pedido continua pendente: {}", short(&still)));
     sw.ok("thread.respond-permission", json!({"id": id, "requestId": pp["requestId"], "allow": true}));
     let w = sw.ok("thread.wait", json!({"id": id, "timeoutMs": 15000}));
     sw.check(w == json!("idle"), format!("a resposta curta libera a ferramenta (sem perguntar de novo): {}", short(&w)));

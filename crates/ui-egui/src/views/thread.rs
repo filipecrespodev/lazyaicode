@@ -136,7 +136,7 @@ fn sig(app: &LazyApp, it: &Item, width: f32, head: bool) -> u64 {
             (3u8, input.as_object().map_or(0, |o| o.len()), partial.is_empty(), r, open(&app.eph.tool_open, key)).hash(&mut h)
         }
         Item::Permission { key, decided, .. } => (4u8, decided.is_some(), open(&app.eph.tool_open, &format!("{key}-detail"))).hash(&mut h),
-        Item::Result { is_error, text, .. } => (5u8, is_error, text.as_ref().map(String::len)).hash(&mut h),
+        Item::Result { is_error, interrupted, text, .. } => (5u8, is_error, interrupted, text.as_ref().map(String::len)).hash(&mut h),
         Item::Error { text, .. } => (6u8, text.len()).hash(&mut h),
         Item::Notice { text, .. } => (7u8, text.len()).hash(&mut h),
     }

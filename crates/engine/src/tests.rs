@@ -163,7 +163,13 @@ async fn send_streams_agent_events_and_updates_the_thread() {
         &bin,
         "#!/bin/sh\necho '{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"sess-1\"}'\n\
          while read -r l; do\n\
-           case \"$l\" in *'\"type\":\"user\"'*)\n\
+           case \"$l\" in\n\
+           *'\"subtype\":\"interrupt\"'*)\n\
+             echo '{\"type\":\"control_cancel_request\",\"request_id\":\"p1\"}'\n\
+             echo '{\"type\":\"result\",\"subtype\":\"error_during_execution\",\"is_error\":true,\"terminal_reason\":\"aborted_streaming\",\"errors\":[\"[ede_diagnostic] result_type=user\"]}';;\n\
+           *'peça permissão'*)\n\
+             echo '{\"type\":\"control_request\",\"request_id\":\"p1\",\"request\":{\"subtype\":\"can_use_tool\",\"tool_name\":\"Bash\",\"input\":{\"command\":\"make\"}}}';;\n\
+           *'\"type\":\"user\"'*)\n\
              echo '{\"type\":\"assistant\",\"message\":{\"id\":\"m1\",\"content\":[{\"type\":\"text\",\"text\":\"feito\"}]}}'\n\
              echo '{\"type\":\"result\",\"is_error\":false,\"duration_ms\":5,\"total_cost_usd\":0}';;\n\
            esac\n\
@@ -205,6 +211,33 @@ async fn send_streams_agent_events_and_updates_the_thread() {
     assert_eq!(act[0]["workspace_id"], w["id"]);
     e.run("thread.update", json!({"id": tid, "unread": false})).await.unwrap();
     assert_eq!(e.run("thread.activity", json!({})).await.unwrap(), json!([]));
+
+    // interromper (Esc) enquanto o agente espera uma permissão: o CLI cancela
+    // o pedido e fecha o turno com `error_during_execution` — a thread volta
+    // a ficar parada, não com erro, e sem pedido pendente
+    e.run("thread.send", json!({"id": tid, "text": "peça permissão"})).await.unwrap();
+    let mut last = String::new();
+    while last != "awaiting" {
+        let ev = tokio::time::timeout_at(deadline, rx.recv()).await.expect("não pediu permissão").unwrap();
+        if ev.event == events::THREAD_STATUS {
+            last = ev.payload["status"].as_str().unwrap_or("").to_string();
+        }
+    }
+    assert_eq!(e.run("thread.pending-permission", json!({"id": tid})).await.unwrap()["requestId"], json!("p1"));
+    e.run("thread.interrupt", json!({"id": tid})).await.unwrap();
+    let mut seen = vec![];
+    loop {
+        let ev = tokio::time::timeout_at(deadline, rx.recv()).await.expect("o turno não fechou").unwrap();
+        if ev.event == events::THREAD_STATUS {
+            let s = ev.payload["status"].as_str().unwrap_or("").to_string();
+            seen.push(s.clone());
+            if s != "running" && s != "awaiting" {
+                break;
+            }
+        }
+    }
+    assert_eq!(seen.last().map(String::as_str), Some("idle"), "status depois do Esc: {seen:?}");
+    assert_eq!(e.run("thread.pending-permission", json!({"id": tid})).await.unwrap(), Value::Null);
     e.shutdown().await;
 }
 

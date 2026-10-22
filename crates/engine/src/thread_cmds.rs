@@ -238,6 +238,7 @@ pub fn register(r: &mut Registry) {
                 if e.core.acp.is_running(&id) {
                     e.core.acp.cancel(&id).await?;
                 } else if e.core.agents.is_running(&id) {
+                    e.core.interrupted.lock().insert(id.clone());
                     e.core.agents.control(&id, json!({ "subtype": "interrupt" })).await?;
                 }
                 Ok(Value::Null)
@@ -271,13 +272,17 @@ pub fn register(r: &mut Registry) {
                 // o CLI só aceita a resposta com o `toolUseID` (e a entrada) do pedido: quem
                 // manda só id + requestId + allow (CLI, MCP) recebe os do pedido pendente
                 let pending = e.core.permissions.lock().get(&p.id).filter(|r| r["requestId"] == p.request_id.as_str()).cloned();
-                if let Some(r) = pending {
-                    if p.tool_use_id.is_none() {
-                        p.tool_use_id = r["toolUseId"].as_str().map(str::to_string);
-                    }
-                    if p.input.is_null() {
-                        p.input = r["input"].clone();
-                    }
+                // uma resposta a outro pedido (atrasada, de outro cliente, já cancelado)
+                // o CLI ignoraria; contá-la como respondida tiraria o pedido de verdade
+                // da tela e deixaria a thread "rodando" para sempre
+                let Some(r) = pending else {
+                    return Err(EngineError::NotFound(format!("O pedido de permissão {} não está mais pendente", p.request_id)));
+                };
+                if p.tool_use_id.is_none() {
+                    p.tool_use_id = r["toolUseId"].as_str().map(str::to_string);
+                }
+                if p.input.is_null() {
+                    p.input = r["input"].clone();
                 }
                 if e.core.acp.is_running(&p.id) {
                     e.core.acp.respond_permission(&p.id, &p.request_id, p.allow, p.updated_permissions.is_some()).await?;
@@ -754,6 +759,10 @@ pub(crate) async fn send_message(e: &Engine, id: &str, text: String, images: Vec
     let t = e.thread(id)?;
     if t.archived {
         return Err(EngineError::Disabled("Thread arquivada".into()));
+    }
+    if e.status_of(id) == Status::Idle {
+        // uma interrupção que não chegou a fechar turno nenhum não vale para o próximo
+        e.core.interrupted.lock().remove(id);
     }
     let cwd = PathBuf::from(&t.cwd);
     if !cwd.is_dir() {

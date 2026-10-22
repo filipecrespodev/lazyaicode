@@ -79,6 +79,9 @@ pub enum Item {
         duration_ms: u64,
         cost_usd: f64,
         is_error: bool,
+        /// o turno foi interrompido por quem usa (Esc), não falhou
+        #[serde(default)]
+        interrupted: bool,
         text: Option<String>,
     },
     Error {
@@ -164,6 +167,11 @@ fn content_images(c: &Value) -> Vec<String> {
 }
 
 /// Retira os blocos que o CLI injeta e que não são do usuário.
+/// O aviso que o CLI do Claude põe como fala do usuário ao interromper
+/// (`[Request interrupted by user]`, `… for tool use]`): vira um
+/// [`Item::Notice`] com este texto, que a tela traduz.
+pub const INTERRUPTED_NOTICE: &str = "[Request interrupted by user]";
+
 pub fn clean_user_text(t: &str) -> String {
     let mut out = t.to_string();
     for tag in ["system-reminder", "local-command-caveat"] {
@@ -279,6 +287,11 @@ impl Transcript {
                     content_text(&Value::Array(only_text))
                 };
                 let text = clean_user_text(&text);
+                if images.is_empty() && text.starts_with("[Request interrupted by user") && text.ends_with(']') {
+                    let key = msg["uuid"].as_str().map(str::to_string).unwrap_or_else(|| self.next_key("note"));
+                    self.push(Item::Notice { key, text: INTERRUPTED_NOTICE.to_string() });
+                    return;
+                }
                 if !text.is_empty() || !images.is_empty() {
                     let key = msg["uuid"].as_str().map(str::to_string).unwrap_or_else(|| self.next_key("user"));
                     self.push(Item::User { key, text, images });
@@ -331,7 +344,8 @@ impl Transcript {
                         _ => {}
                     }
                 }
-                let is_error = msg["is_error"].as_bool().unwrap_or(false);
+                let interrupted = was_interrupted(msg);
+                let is_error = msg["is_error"].as_bool().unwrap_or(false) && !interrupted;
                 let text = is_error.then(|| match msg["result"].as_str() {
                     Some(r) => r.to_string(),
                     None => msg["errors"]
@@ -345,6 +359,7 @@ impl Transcript {
                     duration_ms: msg["duration_ms"].as_u64().unwrap_or(0),
                     cost_usd: msg["total_cost_usd"].as_f64().filter(|c| c.is_finite()).unwrap_or(0.0),
                     is_error,
+                    interrupted,
                     text,
                 });
             }
@@ -476,6 +491,13 @@ pub fn tool_summary(name: &str, input: &Value) -> String {
     }
 }
 
+/// O `result` de um turno interrompido (Esc): o CLI do Claude o fecha com
+/// `error_during_execution` e um `terminal_reason` `aborted_*` (e um
+/// diagnóstico interno em `errors`) — é a parada pedida, não uma falha.
+pub fn was_interrupted(result: &Value) -> bool {
+    result["terminal_reason"].as_str().is_some_and(|r| r.starts_with("aborted"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -490,6 +512,7 @@ mod tests {
                 Item::Thinking { text, .. } => format!("thinking:{text}"),
                 Item::Tool { name, result, .. } => format!("tool:{name}:{}", result.as_ref().map_or("-", |r| r.text.as_str())),
                 Item::Permission { tool_name, decided, .. } => format!("perm:{tool_name}:{decided:?}"),
+                Item::Result { is_error, interrupted: true, .. } => format!("result:{is_error}:interrupted"),
                 Item::Result { is_error, .. } => format!("result:{is_error}"),
                 Item::Error { text, .. } => format!("error:{text}"),
                 Item::Notice { text, .. } => format!("notice:{text}"),
@@ -527,6 +550,23 @@ mod tests {
         assert!(t.pending_permission().is_some());
         t.apply(&json!({"type":"result","is_error":false,"duration_ms":10,"total_cost_usd":0.01}));
         assert_eq!(texts(&t), vec!["perm:Write:Some(Cancelled)", "result:false"]);
+    }
+
+    #[test]
+    fn an_interrupted_turn_is_not_an_error() {
+        let mut t = Transcript::new();
+        t.apply(&json!({"type":"result","subtype":"error_during_execution","is_error":true,"terminal_reason":"aborted_streaming",
+            "errors":["[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null"]}));
+        t.apply(&json!({"type":"result","subtype":"error_during_execution","is_error":true,"errors":["falhou"]}));
+        assert_eq!(texts(&t), vec!["result:false:interrupted", "result:true"]);
+        let Some(Item::Result { text, .. }) = t.items.first() else { panic!("sem item") };
+        assert_eq!(text, &None, "o diagnóstico interno não aparece");
+        // o aviso que o CLI escreve como fala do usuário vira um aviso só
+        for marker in ["[Request interrupted by user]", "[Request interrupted by user for tool use]"] {
+            let mut t = Transcript::new();
+            t.apply(&json!({"type":"user","uuid":"u9","message":{"content":[{"type":"text","text":marker}]}}));
+            assert_eq!(texts(&t), vec![format!("notice:{INTERRUPTED_NOTICE}")]);
+        }
     }
 
     #[test]
